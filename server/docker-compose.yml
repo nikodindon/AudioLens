@@ -1,0 +1,11 @@
+services:
+  audiolens:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      # Set AUDIOLENS_SERVER__TOKEN etc. or mount a custom config.
+      - AUDIOLENS_SERVER__HOST=0.0.0.0
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
