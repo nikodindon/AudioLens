@@ -198,7 +198,7 @@ private fun AppScreen(activity: MainActivity) {
         }, label = { Text("Whisper model") }, modifier = Modifier.fillMaxWidth())
 
         Text(status)
-        LazyColumn(horizontalAlignment = Alignment.CenterHorizontally) {
+        LazyColumn(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
             items(LiveTranscriptHolder.lines) { msg ->
                 Text(msg, style = MaterialTheme.typography.bodySmall)
             }
