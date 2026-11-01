@@ -20,8 +20,10 @@ class LiveWebSocketClient(
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
     private var webSocket: WebSocket? = null
+    @Volatile private var closing = false
 
     fun connect() {
+        closing = false
         var wsUrl = url.replace("https", "wss").replace("http", "ws")
         if (!wsUrl.endsWith("/ws")) wsUrl = wsUrl.trimEnd('/') + "/ws"
         val request = Request.Builder()
@@ -32,6 +34,9 @@ class LiveWebSocketClient(
             override fun onOpen(webSocket: WebSocket, response: Response) { onOpen() }
             override fun onMessage(webSocket: WebSocket, text: String) { onText(text) }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { onError(t) }
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (!closing) onError(null)
+            }
         })
     }
 
@@ -59,6 +64,7 @@ class LiveWebSocketClient(
     }
 
     fun disconnect() {
+        closing = true
         webSocket?.close(1000, "done")
     }
 }

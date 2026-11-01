@@ -14,11 +14,16 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.WindowManager
+import android.view.Gravity
+import android.view.MotionEvent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.widget.TextView
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dev.audiolens.network.LiveWebSocketClient
 import dev.audiolens.state.LiveTranscriptHolder
+import dev.audiolens.state.CaptureStatus
 import java.io.File
 
 class CaptureService : Service() {
@@ -82,10 +87,14 @@ class CaptureService : Service() {
         // A new consent result must not replace resources of an active session.
         if (started || stopping) return
         started = true
+        LiveTranscriptHolder.capturing = true
+        LiveTranscriptHolder.error = null
+        LiveTranscriptHolder.status = CaptureStatus.CONNECTING
         try {
             startCaptureResources(intent)
         } catch (e: Exception) {
             android.util.Log.e("AudioLens", "Unable to start capture", e)
+            LiveTranscriptHolder.error = "Impossible de démarrer la capture."
             stopCapture()
         }
     }
@@ -106,45 +115,100 @@ class CaptureService : Service() {
                 android.util.Log.i("AudioLensWS", "RX=" + msg)
                 try {
                     val j = org.json.JSONObject(msg)
-                    // Show a single, readable final segment; ignore noisy partials.
-                    if (j.optString("type") != "final") { /* ignore */ } else {
-                    val src = j.optString("text_src", "").trim()
-                    val tgt = j.optString("text_tgt", "").trim()
-                    val text = if (tgt.isNotBlank()) tgt.take(220) else src.take(220)
-                    if (text.isNotBlank() && text.length >= 5) uiHandler.post {
+                    uiHandler.post {
                         if (stopping) return@post
-                        overlayView?.text = text
-                        overlayView?.maxLines = 4
-                        overlayView?.ellipsize = android.text.TextUtils.TruncateAt.END
-                        LiveTranscriptHolder.lines.add(text)
+                        when (j.optString("type")) {
+                            "ready" -> LiveTranscriptHolder.status = CaptureStatus.ACTIVE
+                            "partial" -> LiveTranscriptHolder.status = CaptureStatus.TRANSCRIBING
+                            "final" -> {
+                                val src = j.optString("text_src", "").trim()
+                                val tgt = if (j.isNull("text_tgt")) null else j.optString("text_tgt").trim()
+                                val text = tgt?.takeIf { it.isNotBlank() } ?: src
+                                if (text.isNotBlank()) {
+                                    overlayView?.text = text.take(220)
+                                    LiveTranscriptHolder.add(src, tgt)
+                                }
+                                LiveTranscriptHolder.status = CaptureStatus.ACTIVE
+                            }
+                            "error" -> {
+                                LiveTranscriptHolder.error = j.optString("message", "Erreur du serveur")
+                                LiveTranscriptHolder.status = CaptureStatus.ERROR
+                            }
+                        }
                     }
+                } catch (_: Exception) { }
+            }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t ->
+                android.util.Log.e("AudioLensWS", "WS failure", t)
+                uiHandler.post {
+                    if (!stopping) {
+                        LiveTranscriptHolder.error = "Connexion au serveur interrompue."
+                        LiveTranscriptHolder.status = CaptureStatus.ERROR
                     }
-                } catch (_: Exception) {}
-            }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })
+                }
+            })
             live = client
             client.connect()
             client.sendStart(targetLang, mode, whisperModel)
         } else {
-            android.util.Log.w("AudioLensWS", "WS skipped serverUrl=" + serverUrl + " token empty=" + token.isNullOrEmpty())
+            LiveTranscriptHolder.error = "Renseignez le serveur et le token dans les réglages."
+            LiveTranscriptHolder.status = CaptureStatus.ERROR
         }
 
         if (Settings.canDrawOverlays(this)) {
+            val prefs = getSharedPreferences("audio_lens", MODE_PRIVATE)
+            val density = resources.displayMetrics.density
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                (resources.displayMetrics.widthPixels * .85f).toInt(),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 android.graphics.PixelFormat.TRANSLUCENT,
-            )
-            val tv = TextView(this).apply {
-                text = "AudioLens..."
-                textSize = 16f
-                setBackgroundColor(android.graphics.Color.argb(200, 0, 0, 0))
-                setTextColor(android.graphics.Color.WHITE)
-                setPadding(20, 14, 20, 14)
-                alpha = 0.95f
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = prefs.getInt("overlay_x", (resources.displayMetrics.widthPixels * .075f).toInt()).coerceIn(0, (resources.displayMetrics.widthPixels * .15f).toInt())
+                y = prefs.getInt("overlay_y", (resources.displayMetrics.heightPixels * .16f).toInt()).coerceIn(0, (resources.displayMetrics.heightPixels * .8f).toInt())
             }
-            (getSystemService(Context.WINDOW_SERVICE) as WindowManager).addView(tv, params)
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val tv = TextView(this).apply {
+                text = "AudioLens · En attente de traduction"
+                textSize = prefs.getFloat("overlay_text_size", 18f).coerceIn(14f, 28f)
+                background = GradientDrawable().apply {
+                    setColor(Color.argb((prefs.getFloat("overlay_opacity", .88f).coerceIn(.55f, 1f) * 255).toInt(), 11, 25, 32))
+                    cornerRadius = 18 * density
+                    setStroke((1 * density).toInt().coerceAtLeast(1), Color.rgb(72, 128, 124))
+                }
+                setTextColor(Color.WHITE)
+                setPadding((18*density).toInt(), (14*density).toInt(), (18*density).toInt(), (14*density).toInt())
+                maxLines = 4
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                contentDescription = "Traduction AudioLens. Faites glisser pour déplacer."
+                var startX = 0
+                var startY = 0
+                var touchX = 0f
+                var touchY = 0f
+                setOnTouchListener { view, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            startX = params.x; startY = params.y
+                            touchX = event.rawX; touchY = event.rawY
+                            true
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            params.x = (startX + event.rawX - touchX).toInt().coerceIn(0, (resources.displayMetrics.widthPixels - view.width).coerceAtLeast(0))
+                            params.y = (startY + event.rawY - touchY).toInt().coerceIn(0, (resources.displayMetrics.heightPixels - view.height).coerceAtLeast(0))
+                            windowManager.updateViewLayout(view, params)
+                            true
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            prefs.edit().putInt("overlay_x", params.x).putInt("overlay_y", params.y).apply()
+                            view.performClick()
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            }
+            windowManager.addView(tv, params)
             overlayView = tv
         }
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -159,11 +223,15 @@ class CaptureService : Service() {
             onChunk = { chunk -> live?.sendBinary(chunk) },
             onFailure = { error ->
                 android.util.Log.e("AudioLens", "Capture stopped unexpectedly", error)
-                uiHandler.post { stopCapture() }
+                uiHandler.post {
+                    LiveTranscriptHolder.error = "La capture audio a été interrompue."
+                    stopCapture()
+                }
             },
         )
         val started = capture?.start() == true
         if (!started) {
+            LiveTranscriptHolder.error = "Impossible de démarrer la capture audio."
             stopCapture()
             return
         }
@@ -177,6 +245,8 @@ class CaptureService : Service() {
         if (stopping) return
         stopping = true
         cleanupResources()
+        LiveTranscriptHolder.capturing = false
+        LiveTranscriptHolder.status = if (LiveTranscriptHolder.error == null) CaptureStatus.READY else CaptureStatus.ERROR
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -207,6 +277,8 @@ class CaptureService : Service() {
     override fun onDestroy() {
         stopping = true
         cleanupResources()
+        LiveTranscriptHolder.capturing = false
+        LiveTranscriptHolder.status = if (LiveTranscriptHolder.error == null) CaptureStatus.READY else CaptureStatus.ERROR
         super.onDestroy()
     }
 
