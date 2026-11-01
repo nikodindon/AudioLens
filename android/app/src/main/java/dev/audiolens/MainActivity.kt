@@ -101,11 +101,17 @@ class MainActivity : ComponentActivity() {
     }
 
     fun startCaptureService(resultCode: Int, data: Intent, path: String) {
+        val prefs = getSharedPreferences("audio_lens", MODE_PRIVATE)
         val intent = Intent(this, CaptureService::class.java).apply {
             action = CaptureService.ACTION_START
             putExtra(CaptureService.EXTRA_RESULT_CODE, resultCode)
             putExtra(CaptureService.EXTRA_RESULT_DATA, data)
             putExtra(CaptureService.EXTRA_OUTPUT_PATH, path)
+            putExtra(CaptureService.EXTRA_SERVER_URL, prefs.getString("server_url", ""))
+            putExtra(CaptureService.EXTRA_TOKEN, prefs.getString("token", ""))
+            putExtra(CaptureService.EXTRA_TARGET_LANG, prefs.getString("target_lang", "fr"))
+            putExtra(CaptureService.EXTRA_MODE, prefs.getString("mode", "live"))
+            putExtra(CaptureService.EXTRA_WHISPER_MODEL, "small")
         }
         startForegroundService(intent)
     }

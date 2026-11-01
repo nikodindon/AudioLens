@@ -12,6 +12,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import dev.audiolens.network.LiveWebSocketClient
 import java.io.File
 
 class CaptureService : Service() {
@@ -23,10 +24,16 @@ class CaptureService : Service() {
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         const val EXTRA_OUTPUT_PATH = "output_path"
+        const val EXTRA_SERVER_URL = "server_url"
+        const val EXTRA_TOKEN = "token"
+        const val EXTRA_TARGET_LANG = "target_lang"
+        const val EXTRA_MODE = "mode"
+        const val EXTRA_WHISPER_MODEL = "whisper_model"
     }
 
     private var projection: MediaProjection? = null
     private var capture: AudioPlaybackCapture? = null
+    private var live: LiveWebSocketClient? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -60,11 +67,29 @@ class CaptureService : Service() {
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
         val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA) ?: return
         val outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return
+        val serverUrl = intent.getStringExtra(EXTRA_SERVER_URL)
+        val token = intent.getStringExtra(EXTRA_TOKEN)
+        val targetLang = intent.getStringExtra(EXTRA_TARGET_LANG) ?: "fr"
+        val mode = intent.getStringExtra(EXTRA_MODE) ?: "live"
+        val whisperModel = intent.getStringExtra(EXTRA_WHISPER_MODEL) ?: "small"
+
+        if (serverUrl != null && !token.isNullOrEmpty()) {
+            val client = LiveWebSocketClient(serverUrl, token, {})
+            live = client
+            client.connect()
+            client.sendStart(targetLang, mode, whisperModel)
+        }
+
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val mediaProjection = projectionManager.getMediaProjection(resultCode, resultData) ?: return
         projection = mediaProjection
         val outFile = File(outputPath)
-        capture = AudioPlaybackCapture(this, mediaProjection, outFile)
+        capture = AudioPlaybackCapture(
+            context = this,
+            mediaProjection = mediaProjection,
+            outputFile = outFile,
+            onChunk = { chunk -> live?.sendBinary(chunk) },
+        )
         val started = capture?.start() == true
         val status = if (started) "Capture en cours (${outFile.name})" else "Echec de la capture"
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -74,6 +99,9 @@ class CaptureService : Service() {
     private fun stopCapture() {
         capture?.stop()
         capture = null
+        live?.sendStop()
+        live?.disconnect()
+        live = null
         projection?.stop()
         projection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
