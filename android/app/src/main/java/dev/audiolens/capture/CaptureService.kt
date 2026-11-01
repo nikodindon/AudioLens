@@ -264,6 +264,7 @@ class CaptureService : Service() {
 
     private val stopTimeout = Runnable {
         LiveTranscriptHolder.error = "La finalisation a expiré : le dernier segment peut manquer."
+        notifyCaptureError(LiveTranscriptHolder.error!!)
         finishStop()
     }
 
@@ -282,6 +283,7 @@ class CaptureService : Service() {
                     if (finished) return@post
                     if (!success && LiveTranscriptHolder.error == null) {
                         LiveTranscriptHolder.error = "Connexion interrompue avant la fin du dernier segment."
+                        notifyCaptureError(LiveTranscriptHolder.error!!)
                     }
                     finishStop()
                 }

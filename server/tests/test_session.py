@@ -62,7 +62,8 @@ async def test_clip_buffers_past_segment_limit_until_stop(config: Config, monkey
     session = Session(config, engine)  # type: ignore[arg-type]
     session.set_live_config(mode="clip", partials=True)
     await _force_vad(session, monkeypatch)
-    session.accept_audio(np.zeros(int((config.vad.max_segment_s + 1) * 16000), dtype="<i2").tobytes())
+    audio = np.zeros(int((config.vad.max_segment_s + 1) * 16000), dtype="<i2")
+    session.accept_audio(audio.tobytes())
 
     assert await session.process() == []
     assert engine.calls == []
