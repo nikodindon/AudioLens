@@ -51,3 +51,9 @@ Aucun nouveau benchmark n'a été lancé contre le serveur actif.
   hors de la boucle. Ne découpler réception et inférence qu'avec une file bornée,
   une politique de surcharge explicite, l'ordre des segments et des tests de
   finalisation ; mesurer l'effet sur la session réelle avant déploiement.
+
+## Mesure réelle ultérieure
+
+Un essai WebSocket avec VAD et Whisper réels sur CPU, sur une instance isolée,
+est documenté dans [benchmark-real-ws-2026-11-01.md](benchmark-real-ws-2026-11-01.md).
+La traduction et la latence Telegram → overlay n'y ont pas été mesurées.
