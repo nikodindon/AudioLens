@@ -1,0 +1,40 @@
+# --- Secrets / local config ---
+.env
+server/.env
+server/config.yaml
+*.local.yaml
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Modèles / données locales ---
+server/models/
+server/samples/
+*.wav
+!server/tests/fixtures/*.wav
+*.onnx
+
+# --- Android / Gradle ---
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+*.apk
+*.aab
+
+# --- Divers ---
+.DS_Store
+*.log
+dump/

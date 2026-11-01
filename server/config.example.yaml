@@ -1,0 +1,65 @@
+# AudioLens server configuration.
+# Copy to config.yaml (git-ignored) and adapt. Every value can be overridden by an
+# environment variable using the AUDIOLENS_ prefix and "__" for nesting, e.g.:
+#   AUDIOLENS_SERVER__TOKEN=...  AUDIOLENS_WHISPER__MODEL=medium
+# Values from the environment are parsed as YAML (so `true`, `2`, `[a, b]` work).
+
+server:
+  # Bind only what is needed: 127.0.0.1 for adb reverse / local tests,
+  # or the Tailscale interface IP (100.x.y.z) for the phone over the tailnet.
+  # Never bind 0.0.0.0 on an untrusted network.
+  host: "127.0.0.1"
+  port: 8765
+  # MANDATORY. Generate with: openssl rand -hex 16
+  token: "CHANGE_ME_generate_with_openssl_rand_hex_16"
+  max_sessions: 2
+  # Hard cap on buffered audio per session (seconds). Protects RAM.
+  max_audio_seconds: 300
+  log_level: "INFO"
+
+whisper:
+  # faster-whisper model name (downloaded automatically) or path to a converted model.
+  # Candidates on a GTX 1050 4 GB: tiny, base, small, medium (see README §10).
+  model: "small"
+  # auto | cuda | cpu. "auto" uses CUDA when available, otherwise CPU.
+  device: "auto"
+  # auto | int8 | int8_float32 | int8_float16 | float16 | float32 | bfloat16
+  # "auto" picks int8_float16 on modern GPUs, int8_float32 on Pascal (GTX 10xx),
+  # and int8 on CPU.
+  compute_type: "auto"
+  beam_size: 5
+  # Thread count used when running on CPU. Keep <= physical cores (4 on i5-8300H).
+  cpu_threads: 4
+  # Optional directory for downloaded models (default: HuggingFace cache).
+  download_root: null
+  # Models the client is allowed to request in its `start` message.
+  # A request outside this list is ignored and the configured model is used.
+  allowed_models:
+    - tiny
+    - base
+    - small
+    - medium
+  # Keep at most N models loaded at once to protect 4 GB of VRAM.
+  max_loaded_models: 1
+  # If CUDA is unavailable or the GPU cannot load the model, fall back to CPU.
+  allow_cpu_fallback: true
+
+vad:
+  # Used by the streaming pipeline (Phase 2). The values are validated now.
+  enabled: true
+  threshold: 0.5
+  min_silence_ms: 400
+  min_speech_ms: 250
+  max_segment_s: 12.0
+  speech_pad_ms: 200
+  # Silero VAD frame size in samples at 16 kHz (512 = 32 ms).
+  window_size: 512
+
+translation:
+  # none | nllb | ollama | argos   (implemented in Phase 3; `none` disables it)
+  engine: "none"
+  # Translation may run on CPU to leave VRAM to Whisper.
+  device: "cpu"
+  compute_type: "int8"
+  model: "facebook/nllb-200-distilled-600M"
+  target_lang: "fr"
