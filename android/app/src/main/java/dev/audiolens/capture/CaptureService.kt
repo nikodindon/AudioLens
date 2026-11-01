@@ -97,7 +97,7 @@ class CaptureService : Service() {
         try {
             startCaptureResources(intent)
         } catch (e: Exception) {
-            android.util.Log.e("AudioLens", "Unable to start capture", e)
+            android.util.Log.e("AudioLens", "Unable to start capture: ${e.javaClass.simpleName}")
             LiveTranscriptHolder.error = "Impossible de démarrer la capture."
             stopCapture()
         }
@@ -114,7 +114,7 @@ class CaptureService : Service() {
         val whisperModel = intent.getStringExtra(EXTRA_WHISPER_MODEL) ?: "small"
 
         if (serverUrl != null && !token.isNullOrEmpty()) {
-            android.util.Log.i("AudioLensWS", "creating ws url=" + serverUrl)
+            android.util.Log.i("AudioLensWS", "creating WebSocket")
             val client = LiveWebSocketClient(serverUrl, token, { msg ->
                 try {
                     val j = org.json.JSONObject(msg)
@@ -142,7 +142,7 @@ class CaptureService : Service() {
                     }
                 } catch (_: Exception) { }
             }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t ->
-                android.util.Log.e("AudioLensWS", "WS failure", t)
+                android.util.Log.e("AudioLensWS", "WS failure: ${t?.javaClass?.simpleName ?: "closed"}")
                 uiHandler.post {
                     if (!stopping) {
                         LiveTranscriptHolder.error = "Connexion au serveur interrompue."
@@ -243,7 +243,7 @@ class CaptureService : Service() {
                 }
             },
             onFailure = { error ->
-                android.util.Log.e("AudioLens", "Capture stopped unexpectedly", error)
+                android.util.Log.e("AudioLens", "Capture stopped unexpectedly: ${error.javaClass.simpleName}")
                 uiHandler.post {
                     LiveTranscriptHolder.error = "La capture audio a été interrompue."
                     stopCapture()
@@ -256,7 +256,7 @@ class CaptureService : Service() {
             stopCapture()
             return
         }
-        android.util.Log.i("AudioLens", "capture started=$started, server=$serverUrl, tokenLen=${token?.length ?: -1}")
+        android.util.Log.i("AudioLens", "capture started=$started")
         val status = if (started) "Capture en cours" else "Echec de la capture"
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .notify(NOTIFICATION_ID, buildNotification(status))
@@ -293,7 +293,7 @@ class CaptureService : Service() {
 
     private fun release(name: String, action: () -> Unit) {
         try { action() } catch (e: Exception) {
-            android.util.Log.w("AudioLens", "Unable to release $name", e)
+            android.util.Log.w("AudioLens", "Unable to release $name: ${e.javaClass.simpleName}")
         }
     }
 

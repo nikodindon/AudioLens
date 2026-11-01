@@ -183,6 +183,9 @@ class Config(BaseModel):
         translation = dict(data["translation"])
         if translation.get("openai_api_key") is not None:
             translation["openai_api_key"] = "***"
+        for key in ("ollama_url", "openai_base_url"):
+            if translation.get(key):
+                translation[key] = "<configured>"
         data["translation"] = translation
         return data
 

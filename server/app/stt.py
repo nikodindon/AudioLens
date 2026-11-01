@@ -266,7 +266,7 @@ class WhisperEngine:
             model = await asyncio.to_thread(self._construct, spec)
         except Exception as exc:
             if spec.device == "cuda" and self._whisper.allow_cpu_fallback:
-                logger.error("GPU load failed (%s); falling back to CPU", exc)
+                logger.error("GPU load failed (%s); falling back to CPU", type(exc).__name__)
                 fallback_reason = f"GPU load failed ({exc}); using CPU"
                 cpu_compute = _CPU_COMPUTE_PREFERENCE[0]
                 cpu_spec = ModelSpec(

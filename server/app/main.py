@@ -59,6 +59,7 @@ _FAILED_ATTEMPTS: dict[str, int] = {}
 
 
 def configure_logging(level: str) -> None:
+    logging.getLogger("uvicorn.access").disabled = True
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -375,11 +376,11 @@ def create_app(
         try:
             spec = await engine_ref.ensure_model(message.whisper_model)
         except ModelLoadError as exc:
-            logger.error("model load failed: %s", exc)
+            logger.error("model load failed (%s)", type(exc).__name__)
             await _fail(websocket, "model_unavailable", str(exc), WS_INTERNAL_ERROR)
             return
         except Exception:
-            logger.exception("unexpected error while loading the model")
+            logger.error("unexpected error while loading the model")
             await _fail(
                 websocket, "model_unavailable", "could not load the model", WS_INTERNAL_ERROR
             )
@@ -447,7 +448,7 @@ def create_app(
                 try:
                     generated = await session.process()
                 except Exception:
-                    logger.exception("processing audio failed for session %s", session.id)
+                    logger.error("processing audio failed for session %s", session.id)
                     await _fail(
                         websocket, "internal_error", "transcription failed", WS_INTERNAL_ERROR
                     )

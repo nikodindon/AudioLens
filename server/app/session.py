@@ -227,7 +227,7 @@ class Session:
                 temperature=0.0,
             )
         except Exception:
-            logger.exception("transcription failed for session %s", self.id)
+            logger.warning("transcription failed for session %s", self.id)
             return []
 
         # lock language on first confident detection.
@@ -277,7 +277,7 @@ class Session:
                 temperature=0.0,
             )
         except Exception:
-            logger.exception("partial transcription failed for session %s", self.id)
+            logger.warning("partial transcription failed for session %s", self.id)
             return None
 
         text = result.text.strip()
@@ -301,7 +301,7 @@ class Session:
                 self.translator.translate, text, src_lang, self.target_lang
             )
         except Exception:
-            logger.exception("translation failed for session %s", self.id)
+            logger.warning("translation failed for session %s", self.id)
             return None
 
     def set_live_config(

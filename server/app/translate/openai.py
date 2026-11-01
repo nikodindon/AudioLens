@@ -60,16 +60,15 @@ class OpenAICompatibleTranslator:
             with urllib.request.urlopen(request, timeout=self.http_timeout) as response:
                 raw = response.read().decode()
                 body = _json.loads(raw)
-                logger.debug("openai translator response raw=%s", raw[:1000])
         except Exception as exc:
-            logger.exception("openai translator request failed: %s", exc)
+            logger.warning("openai translator request failed (%s)", type(exc).__name__)
             return None
         choices = body.get("choices") or []
         if not choices:
-            logger.warning("openai translator returned no choices: %s", body)
+            logger.warning("openai translator returned no choices")
             return None
         message = choices[0].get("message") or {}
         content = (message.get("content") or "").strip()
         if not content:
-            logger.warning("openai translator empty content body=%s", body)
+            logger.warning("openai translator returned empty content")
         return content or None

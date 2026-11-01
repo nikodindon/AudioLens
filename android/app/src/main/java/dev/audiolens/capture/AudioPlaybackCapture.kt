@@ -92,7 +92,7 @@ class AudioPlaybackCapture(
                 audioRecord.release()
                 record = null
                 try { wav?.close() } catch (e: Exception) {
-                    android.util.Log.e("AudioLens", "Unable to finish capture WAV", e)
+                    android.util.Log.e("AudioLens", "Unable to finish capture WAV: ${e.javaClass.simpleName}")
                 }
             }
         }, "AudioLens-Capture").apply { start() }

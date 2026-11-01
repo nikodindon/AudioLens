@@ -108,3 +108,10 @@ def test_safe_dict_masks_translation_key(config_factory) -> None:
     assert safe["translation"]["openai_api_key"] == "***"
     assert "example-private-key" not in str(safe)
     assert config.translation.openai_api_key == "example-private-key"
+
+
+def test_safe_dict_hides_translation_endpoint_credentials(config_factory) -> None:
+    config = config_factory(
+        translation={"openai_base_url": "https://user:secret@example.com/v1?key=secret"}
+    )
+    assert "secret" not in str(config.safe_dict())
