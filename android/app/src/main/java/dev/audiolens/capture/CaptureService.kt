@@ -74,10 +74,13 @@ class CaptureService : Service() {
         val whisperModel = intent.getStringExtra(EXTRA_WHISPER_MODEL) ?: "small"
 
         if (serverUrl != null && !token.isNullOrEmpty()) {
-            val client = LiveWebSocketClient(serverUrl, token, {})
+            android.util.Log.i("AudioLensWS", "creating ws url=" + serverUrl)
+            val client = LiveWebSocketClient(serverUrl, token, { msg -> android.util.Log.i("AudioLensWS", "RX=" + msg) }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })
             live = client
             client.connect()
             client.sendStart(targetLang, mode, whisperModel)
+        } else {
+            android.util.Log.w("AudioLensWS", "WS skipped serverUrl=" + serverUrl + " token empty=" + token.isNullOrEmpty())
         }
 
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -91,6 +94,7 @@ class CaptureService : Service() {
             onChunk = { chunk -> live?.sendBinary(chunk) },
         )
         val started = capture?.start() == true
+        android.util.Log.i("AudioLens", "capture started=$started, server=$serverUrl, tokenLen=${token?.length ?: -1}")
         val status = if (started) "Capture en cours (${outFile.name})" else "Echec de la capture"
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .notify(NOTIFICATION_ID, buildNotification(status))
