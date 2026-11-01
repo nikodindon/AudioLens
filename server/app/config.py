@@ -138,6 +138,8 @@ class TranslationConfig(BaseModel):
     compute_type: str = "int8"
     model: str = "facebook/nllb-200-distilled-600M"
     target_lang: str = "fr"
+    ollama_url: str | None = None
+    ollama_model: str | None = None
 
     @field_validator("compute_type")
     @classmethod

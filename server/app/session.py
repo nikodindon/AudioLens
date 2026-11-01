@@ -34,11 +34,16 @@ class AudioError(ValueError):
 
 class Session:
     def __init__(
-        self, config: Config, engine: WhisperEngine, session_id: str | None = None
+        self,
+        config: Config,
+        engine: WhisperEngine,
+        translator=None,
+        session_id: str | None = None,
     ) -> None:
         self.id = session_id or _new_id()
         self.config = config
         self.engine = engine
+        self.translator = translator
 
         self.source_lang = "auto"
         self.target_lang = config.translation.target_lang
@@ -256,8 +261,13 @@ class Session:
             return None
         if src_lang == self.target_lang:
             return text
-        # Engine-level translation is Phase 3.
-        return None
+        if self.translator is None:
+            return None
+        try:
+            return self.translator.translate(text, src_lang, self.target_lang)
+        except Exception:
+            logger.exception("translation failed for session %s", self.id)
+            return None
 
     def set_live_config(
         self,

@@ -35,6 +35,7 @@ from .protocol import (
 )
 from .session import AudioError, Session
 from .stt import ModelLoadError, ModelSpec, WhisperEngine
+from .translate import build_translator
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ def create_app(
         app.state.config = conf
         app.state.config_path = resolved
         app.state.sessions = 0
+        app.state.translator = build_translator(conf)
         if engine is not None:
             app.state.engine = engine
         else:
@@ -242,7 +244,7 @@ def create_app(
             )
             return
 
-        session = Session(current, engine_ref)
+        session = Session(current, engine_ref, app.state.translator)
         session.set_live_config(
             source_lang=message.source_lang,
             target_lang=message.target_lang,
