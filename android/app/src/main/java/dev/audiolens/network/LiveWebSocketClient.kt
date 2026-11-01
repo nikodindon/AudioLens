@@ -21,6 +21,7 @@ class LiveWebSocketClient(
         .build()
     private var webSocket: WebSocket? = null
     @Volatile private var closing = false
+    private val stopHandshake = StopHandshake()
 
     fun connect() {
         closing = false
@@ -33,9 +34,15 @@ class LiveWebSocketClient(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { onOpen() }
             override fun onMessage(webSocket: WebSocket, text: String) { onText(text) }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { onError(t) }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                stopHandshake.complete(false)
+                if (!closing) onError(t)
+            }
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(code, null)
+            }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                if (!closing) onError(null)
+                if (closing) stopHandshake.complete(code == 1000) else onError(null)
             }
         })
     }
@@ -59,12 +66,15 @@ class LiveWebSocketClient(
         webSocket?.send(okio.Buffer().write(data, 0, data.size).readByteString(data.size.toLong()))
     }
 
-    fun sendStop() {
-        webSocket?.send(JSONObject(mapOf("type" to "stop")).toString())
+    fun finish(onComplete: (Boolean) -> Unit) {
+        if (!stopHandshake.begin(onComplete)) return
+        closing = true
+        if (webSocket?.send("{\"type\":\"stop\"}") != true) stopHandshake.complete(false)
     }
 
     fun disconnect() {
         closing = true
-        webSocket?.close(1000, "done")
+        webSocket?.cancel()
+        stopHandshake.complete(false)
     }
 }

@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-enum class CaptureStatus { READY, CONNECTING, ACTIVE, TRANSCRIBING, ERROR }
+enum class CaptureStatus { READY, CONNECTING, ACTIVE, TRANSCRIBING, STOPPING, ERROR }
 
 data class TranscriptLine(val source: String, val translation: String?) {
     val display: String get() = translation?.takeIf { it.isNotBlank() } ?: source

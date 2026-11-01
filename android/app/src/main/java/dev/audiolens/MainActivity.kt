@@ -87,5 +87,9 @@ class MainActivity : ComponentActivity() {
         startForegroundService(intent)
     }
 
-    fun stopCapture() { stopService(Intent(this, CaptureService::class.java)) }
+    fun stopCapture() {
+        if (LiveTranscriptHolder.capturing) {
+            startService(Intent(this, CaptureService::class.java).setAction(CaptureService.ACTION_STOP))
+        }
+    }
 }

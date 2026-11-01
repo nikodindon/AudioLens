@@ -83,6 +83,7 @@ private fun HomePage(activity: MainActivity, overlayAllowed: Boolean, onHistory:
         CaptureStatus.CONNECTING -> "Connexion en cours"
         CaptureStatus.ACTIVE -> "Capture active"
         CaptureStatus.TRANSCRIBING -> "Transcription en cours"
+        CaptureStatus.STOPPING -> "Finalisation en cours"
         CaptureStatus.ERROR -> "Une action est nécessaire"
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -93,7 +94,7 @@ private fun HomePage(activity: MainActivity, overlayAllowed: Boolean, onHistory:
         Spacer(Modifier.height(8.dp))
         Text(LiveTranscriptHolder.error ?: if (capturing) "Écoutez votre contenu : la traduction apparaît au-dessus de votre application." else "Choisissez une application, lancez son contenu et lisez la traduction en direct.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(24.dp))
-        Button(onClick = { if (capturing) activity.stopCapture() else activity.requestCapture() }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(18.dp)) {
+        Button(onClick = { if (capturing) activity.stopCapture() else activity.requestCapture() }, enabled = status != CaptureStatus.STOPPING, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(18.dp)) {
             Text(if (capturing) "Arrêter la capture" else "Démarrer la capture", fontWeight = FontWeight.Bold)
         }
         if (!overlayAllowed) {

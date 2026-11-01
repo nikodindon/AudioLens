@@ -48,6 +48,7 @@ class CaptureService : Service() {
     private val uiHandler = Handler(Looper.getMainLooper())
     private var overlayView: TextView? = null
     private var stopping = false
+    private var finished = false
     private var started = false
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -116,8 +117,9 @@ class CaptureService : Service() {
                 try {
                     val j = org.json.JSONObject(msg)
                     uiHandler.post {
-                        if (stopping) return@post
-                        when (j.optString("type")) {
+                        val type = j.optString("type")
+                        if (stopping && type != "final" && type != "error") return@post
+                        when (type) {
                             "ready" -> LiveTranscriptHolder.status = CaptureStatus.ACTIVE
                             "partial" -> LiveTranscriptHolder.status = CaptureStatus.TRANSCRIBING
                             "final" -> {
@@ -128,7 +130,7 @@ class CaptureService : Service() {
                                     overlayView?.text = text.take(220)
                                     LiveTranscriptHolder.add(src, tgt)
                                 }
-                                LiveTranscriptHolder.status = CaptureStatus.ACTIVE
+                                if (!stopping) LiveTranscriptHolder.status = CaptureStatus.ACTIVE
                             }
                             "error" -> {
                                 LiveTranscriptHolder.error = j.optString("message", "Erreur du serveur")
@@ -241,42 +243,74 @@ class CaptureService : Service() {
             .notify(NOTIFICATION_ID, buildNotification(status))
     }
 
+    private val stopTimeout = Runnable {
+        LiveTranscriptHolder.error = "La finalisation a expiré : le dernier segment peut manquer."
+        finishStop()
+    }
+
     private fun stopCapture() {
         if (stopping) return
         stopping = true
-        cleanupResources()
+        LiveTranscriptHolder.status = CaptureStatus.STOPPING
+        releaseCapture()
+        val client = live
+        if (client == null) {
+            finishStop()
+        } else {
+            uiHandler.postDelayed(stopTimeout, 60_000)
+            client.finish { success ->
+                uiHandler.post {
+                    if (finished) return@post
+                    if (!success && LiveTranscriptHolder.error == null) {
+                        LiveTranscriptHolder.error = "Connexion interrompue avant la fin du dernier segment."
+                    }
+                    finishStop()
+                }
+            }
+        }
+    }
+
+    private fun release(name: String, action: () -> Unit) {
+        try { action() } catch (e: Exception) {
+            android.util.Log.w("AudioLens", "Unable to release $name", e)
+        }
+    }
+
+    private fun releaseCapture() {
+        release("capture") { capture?.stop() }
+        capture = null
+        release("projection callback") { projection?.unregisterCallback(projectionCallback) }
+        release("projection") { projection?.stop() }
+        projection = null
+    }
+
+    private fun finishStop() {
+        if (finished) return
+        finished = true
+        uiHandler.removeCallbacks(stopTimeout)
+        release("WebSocket") { live?.disconnect() }
+        live = null
+        overlayView?.let { view ->
+            release("overlay") { (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(view) }
+        }
+        overlayView = null
         LiveTranscriptHolder.capturing = false
         LiveTranscriptHolder.status = if (LiveTranscriptHolder.error == null) CaptureStatus.READY else CaptureStatus.ERROR
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    private fun cleanupResources() {
-        // Release each resource even if another one has already failed.
-        fun release(name: String, action: () -> Unit) {
-            try { action() } catch (e: Exception) {
-                android.util.Log.w("AudioLens", "Unable to release $name", e)
-            }
-        }
-        release("capture") { capture?.stop() }
-        capture = null
-        release("WebSocket stop") { live?.sendStop() }
-        overlayView?.let {
-            release("overlay") {
-                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(it)
-            }
-        }
-        overlayView = null
-        release("WebSocket") { live?.disconnect() }
-        live = null
-        release("projection callback") { projection?.unregisterCallback(projectionCallback) }
-        release("projection") { projection?.stop() }
-        projection = null
-    }
-
     override fun onDestroy() {
         stopping = true
-        cleanupResources()
+        finished = true
+        uiHandler.removeCallbacks(stopTimeout)
+        releaseCapture()
+        release("WebSocket") { live?.disconnect() }
+        live = null
+        overlayView?.let { view ->
+            release("overlay") { (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(view) }
+        }
+        overlayView = null
         LiveTranscriptHolder.capturing = false
         LiveTranscriptHolder.status = if (LiveTranscriptHolder.error == null) CaptureStatus.READY else CaptureStatus.ERROR
         super.onDestroy()
