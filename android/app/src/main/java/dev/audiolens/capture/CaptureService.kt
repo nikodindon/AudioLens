@@ -106,7 +106,14 @@ class CaptureService : Service() {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 android.graphics.PixelFormat.TRANSLUCENT,
             )
-            val tv = TextView(this).apply { text = "AudioLens..." ; setBackgroundColor(android.graphics.Color.argb(160,0,0,0)); setTextColor(android.graphics.Color.WHITE) }
+            val tv = TextView(this).apply {
+                text = "AudioLens..."
+                textSize = 16f
+                setBackgroundColor(android.graphics.Color.argb(200, 0, 0, 0))
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(20, 14, 20, 14)
+                alpha = 0.95f
+            }
             (getSystemService(Context.WINDOW_SERVICE) as WindowManager).addView(tv, params)
             overlayView = tv
         }
