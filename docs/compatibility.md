@@ -5,7 +5,7 @@ Etat : application de capture installee sur le telephone connecte (realme RMX383
 | App | Type de contenu | Audio capture (AudioPlaybackCapture) | Notes |
 |---|---|---|---|
 | Telegram | vocal | a tester | note RMS / fichier WAV audible |
-| Telegram | video | a tester | |
+| Telegram | video | oui | telephone XGROKJCEEQN7ZHF6, Android 15, capture 45.6 s, RMS 313, WAV PCM valide |
 | WhatsApp | vocal | a tester | mode ecouteur vs haut-parleur |
 | WhatsApp | video | a tester | |
 | YouTube | media | probable | usage MEDIA attendu capturable |
