@@ -92,16 +92,12 @@ class CaptureService : Service() {
                     if (j.optString("type") != "final") { /* ignore */ } else {
                     val src = j.optString("text_src", "").trim()
                     val tgt = j.optString("text_tgt", "").trim()
-                    val overlayLines = buildList {
-                        if (tgt.isNotBlank()) add(tgt.take(80))
-                        if (src.isNotBlank() && src != tgt) add(src.take(80))
-                    }
-                    val text = overlayLines.joinToString("\n")
-                    if (text.isNotBlank() && text.replace("\n", "").length >= 5) uiHandler.post {
+                    val text = if (tgt.isNotBlank()) tgt.take(220) else src.take(220)
+                    if (text.isNotBlank() && text.length >= 5) uiHandler.post {
                         overlayView?.text = text
-                        overlayView?.maxLines = 2
+                        overlayView?.maxLines = 4
                         overlayView?.ellipsize = android.text.TextUtils.TruncateAt.END
-                        LiveTranscriptHolder.lines.add(text.replace("\n", " / "))
+                        LiveTranscriptHolder.lines.add(text)
                     }
                     }
                 } catch (_: Exception) {}
