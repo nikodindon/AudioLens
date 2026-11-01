@@ -2,12 +2,13 @@
 
 Version: `1` · Server: `0.1.0`
 
-Transport: WebSocket. Endpoint: `ws://<host>:8765/ws` (Tailscale/WireGuard in
-production, `adb reverse` in development). Audio frames stay on the same socket.
+Transport: WebSocket. Endpoint: `ws://<host>:8765/ws`. Audio frames stay on the same socket.
 
-Authentication: the token travels either as a query parameter
-(`/ws?token=<TOKEN>`) or as an `Authorization: Bearer <TOKEN>` header. An invalid
-token yields an `error` message followed by close code **4401**.
+Authentication: the token travels only via the handshake header
+`Authorization: Bearer <TOKEN>` (it never appears in any URL or log). Query-string
+token (`/ws?token=`) is accepted only when `server.allow_query_token: true` (default
+`false`) and only for test tooling. An invalid token yields an `error` followed by
+close code **4401** and a growing per-IP delay.
 
 The token is compared in constant time. Never commit it; generate one with
 `openssl rand -hex 16`.
@@ -46,6 +47,7 @@ The token is compared in constant time. Never commit it; generate one with
 | `whisper_model` | no | `null` | **request only**, see below |
 | `translate` | no | `true` | |
 | `partials` | no | `true` | no partials are produced in Phase 1 |
+| `mode` | no | `"live"` | `"live"` or `"clip"` (clip = accumulation + passe finale de meilleure qualité + `done`) |
 
 ### `whisper_model` is a request, not a command
 
@@ -165,6 +167,10 @@ require a bump. Clients should ignore unknown fields.
 ## Admin endpoints
 
 - `GET /health` — public status (no audio, no transcript, no secrets).
+
+`POST /transcribe` (multipart `file`, `Authorization: Bearer <TOKEN>`)
+transcodes an audio/video file with ffmpeg to 16 kHz mono PCM, runs the clip
+pipeline and returns `{ "src_lang": "ru", "segments": [ { "start_ms":..., "end_ms":..., "text_src":..., "text_tgt":... } ] }`.
 - `POST /admin/reload` — reload `config.yaml` and the Whisper model. Requires
   `?token=<TOKEN>` or `Authorization: Bearer <TOKEN>`. Returns the effective
   model/device/compute type; `409` when the server was started without a config

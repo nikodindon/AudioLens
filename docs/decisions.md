@@ -164,3 +164,24 @@ CI. `tools/stream_wav.py` n'a pas de dépendance lourde (numpy + websockets).
 
 **Conséquences** : `uvicorn app.main:create_app --factory` ou
 `python -m app.main --config config.yaml` depuis `server/`.
+
+## ADR-014 — Authentification par header uniquement (changement de plan)
+
+**Décision** : le token ne transite plus dans l'URL. Handshake via
+`Authorization: Bearer`. `?token=` autorisé seulement si
+`server.allow_query_token: true` (défaut false), pour les outils de test.
+Limiter basique par IP (délai croissant) et aucun token dans les logs.
+
+## ADR-015 — Abstraction STT minimale
+
+**Décision** : interface `TranscriptionEngine` (load/transcribe/unload) avec une
+seule implémentation `FasterWhisperEngine`, moteur choisi par `stt.engine`
+en config. Pas d'autre moteur v1.
+
+## ADR-016 — Mode Clip + endpoint fichier
+
+**Décision** : priorité produit à la compréhension de contenus courts (Telegram/
+WhatsApp). Mode `live` (existant) + `clip` (accumulation, final haute qualité,
+message `done`) et `POST /transcribe` (ffmpeg -> PCM, pipeline clip). Auth par
+header, nettoyage temporaire, pas de stockage. Android Phase 6 bis : partage de
+fichier vers AudioLens.

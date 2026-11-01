@@ -147,9 +147,13 @@ Quand on regarde une vidéo ou qu'on écoute un vocal (réseau social, messageri
 
 ## 5. Protocole client ↔ serveur
 
-Endpoint : `ws://<host-tailscale>:8765/ws?token=<TOKEN>` (ou en-tête
-`Authorization: Bearer <TOKEN>`). Le trafic est déjà chiffré par WireGuard dans le
-tailnet. Protocole **v1** ; le contrat complet est dans [`docs/protocol.md`](docs/protocol.md).
+Endpoint : `ws://<host-tailscale>:8765/ws`. Le token passe **uniquement** par
+l'en-tête `Authorization: Bearer <TOKEN>` au handshake (jamais dans l'URL).
+Le trafic est déjà chiffré par WireGuard dans le tailnet. Protocole **v1** ; contrat
+complet dans [`docs/protocol.md`](docs/protocol.md).
+
+URL avec `?token=` uniquement si `server.allow_query_token: true` (défaut `false`),
+uniquement pour `tools/stream_wav.py` et les tests.
 
 ### Client → serveur
 
@@ -163,6 +167,7 @@ tailnet. Protocole **v1** ; le contrat complet est dans [`docs/protocol.md`](doc
   "source_lang": "auto",
   "target_lang": "fr",
   "whisper_model": "small",
+  "mode": "live",
   "translate": true,
   "partials": true
 }
@@ -224,6 +229,10 @@ Règles :
 
 **Phase 1** : le serveur bufferise l'audio et transcrit à la réception de `stop`
 (pas encore de `partial` ni de VAD — Phase 2).
+
+Nouveau en Phase 4 bis : `mode: "clip"` et endpoint HTTP `POST /transcribe`
+ (multipart `file`, auth par header, JSON de sortie : segments source + traduction,
+ langue détectée). Voir `docs/protocol.md`.
 
 ---
 
@@ -564,7 +573,18 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ terminé. Chaque phase se termin
 
 **Acceptation** : `docker compose up` sur une machine propre suffit à démarrer le service.
 
-### Phase 5 — Android : capture seule
+### Phase 4 bis — Sécurité, mode Clip et transcription de fichier (nouveau)
+
+- ⬜ Authentification par header uniquement + meilleure gestion des tentatives par IP.
+- ⬜ Abstraction STT minimale (`TranscriptionEngine`, `FasterWhisperEngine`).
+- ⬜ Mode `clip` : accumulation, final haute qualité, message `done`.
+- ⬜ Endpoint HTTP `POST /transcribe` (ffmpeg -> PCM 16 kHz, nettoyage, timeout).
+- ⬜ Tests OGG/OPUS et MP4.
+
+**Acceptation** : un fichier OGG/OPUS étranger envoyé à `/transcribe` renvoie une traduction française correcte ; le mode clip WS donne le même résultat ; le token n'apparaît nulle part dans les logs.
+
+### Phase 5 — Android : capture seule (priorité Telegram/WhatsApp et WhatsApp/Telegram vocaux)
+
 
 - ⬜ Projet Kotlin, thème, onboarding des permissions.
 - ⬜ `CaptureService` au premier plan + MediaProjection + `AudioRecord` playback capture.
@@ -583,6 +603,14 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ terminé. Chaque phase se termin
 - ⬜ Affichage provisoire du texte dans l'Activity.
 
 **Acceptation** : lecture d'une vidéo étrangère → texte traduit visible dans l'app, de bout en bout.
+
+### Phase 6 bis — Partage/import de fichier (nouveau)
+
+- ⬜ Intent-filter `ACTION_SEND` pour `audio/*` et `video/*`.
+- ⬜ Envoi à `POST /transcribe` + affichage du résultat.
+- ⬜ Gestion des URI `content://`, gros fichiers, annulation.
+
+**Acceptation** : depuis Telegram, partager un vocal/vidéo vers AudioLens → traduction en deux manipulations, testé sur le téléphone connecté.
 
 ### Phase 7 — Overlay
 
