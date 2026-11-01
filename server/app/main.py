@@ -149,12 +149,8 @@ def create_app(
                 spec.fallback_reason or "none",
             )
             app.state.engine = active_engine
-        if conf.translation.engine != "none":
-            logger.warning(
-                "translation.engine=%s is configured but translation lands in Phase 3; "
-                "text_tgt will be null for now",
-                conf.translation.engine,
-            )
+        if conf.translation.engine != "none" and getattr(app.state, "translator", None) is None:
+            logger.warning("translation.engine=%s configured but translator unavailable", conf.translation.engine)
         try:
             yield
         finally:

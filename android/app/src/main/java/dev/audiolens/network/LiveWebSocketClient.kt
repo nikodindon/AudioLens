@@ -22,7 +22,8 @@ class LiveWebSocketClient(
     private var webSocket: WebSocket? = null
 
     fun connect() {
-        val wsUrl = url.replace("https", "wss").replace("http", "ws")
+        var wsUrl = url.replace("https", "wss").replace("http", "ws")
+        if (!wsUrl.endsWith("/ws")) wsUrl = wsUrl.trimEnd('/') + "/ws"
         val request = Request.Builder()
             .url(wsUrl)
             .header("Authorization", "Bearer $token")
