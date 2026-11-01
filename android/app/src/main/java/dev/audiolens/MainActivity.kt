@@ -75,7 +75,9 @@ class MainActivity : ComponentActivity() {
             action = CaptureService.ACTION_START
             putExtra(CaptureService.EXTRA_RESULT_CODE, resultCode)
             putExtra(CaptureService.EXTRA_RESULT_DATA, data)
-            putExtra(CaptureService.EXTRA_OUTPUT_PATH, filesDir.resolve("debug_capture.wav").absolutePath)
+            if (prefs.getBoolean("diagnostic_wav", false)) {
+                putExtra(CaptureService.EXTRA_OUTPUT_PATH, filesDir.resolve("debug_capture.wav").absolutePath)
+            }
             putExtra(CaptureService.EXTRA_SERVER_URL, prefs.getString("server_url", "http://127.0.0.1:8765"))
             putExtra(CaptureService.EXTRA_TOKEN, prefs.getString("token", ""))
             putExtra(CaptureService.EXTRA_TARGET_LANG, prefs.getString("target_lang", "fr"))

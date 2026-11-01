@@ -162,6 +162,7 @@ private fun SettingsPage(activity: MainActivity, prefs: android.content.SharedPr
     var mode by remember { mutableStateOf(prefs.getString("mode", "live") ?: "live") }
     var size by remember { mutableFloatStateOf(prefs.getFloat("overlay_text_size", 18f)) }
     var opacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", .88f)) }
+    var diagnosticWav by remember { mutableStateOf(prefs.getBoolean("diagnostic_wav", false)) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionLabel("CONNEXION")
         OutlinedTextField(url, { url = it; prefs.edit().putString("server_url", it).apply() }, Modifier.fillMaxWidth(), label = { Text("Adresse du serveur") }, singleLine = true)
@@ -183,6 +184,17 @@ private fun SettingsPage(activity: MainActivity, prefs: android.content.SharedPr
         Slider(opacity, { opacity = it; prefs.edit().putFloat("overlay_opacity", it).apply() }, valueRange = .55f..1f)
         Text("Les changements de superposition s’appliquent à la prochaine capture. Faites glisser le bandeau pour le déplacer.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (!overlayAllowed) OutlinedButton(onClick = activity::openOverlaySettings) { Text("Autoriser la superposition") }
+        SectionLabel("DIAGNOSTIC")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Enregistrer l’audio en WAV")
+                Text("Fichier privé sur cet appareil, remplacé à chaque capture.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = diagnosticWav, onCheckedChange = {
+                diagnosticWav = it
+                prefs.edit().putBoolean("diagnostic_wav", it).apply()
+            })
+        }
         Spacer(Modifier.height(24.dp))
     }
 }

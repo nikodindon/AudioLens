@@ -102,7 +102,7 @@ class CaptureService : Service() {
     private fun startCaptureResources(intent: Intent) {
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
         val resultData = requireNotNull(intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA))
-        val outputPath = requireNotNull(intent.getStringExtra(EXTRA_OUTPUT_PATH))
+        val outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH)
         val serverUrl = intent.getStringExtra(EXTRA_SERVER_URL)
         val token = intent.getStringExtra(EXTRA_TOKEN)
         val targetLang = intent.getStringExtra(EXTRA_TARGET_LANG) ?: "fr"
@@ -215,7 +215,7 @@ class CaptureService : Service() {
         val mediaProjection = requireNotNull(projectionManager.getMediaProjection(resultCode, resultData))
         projection = mediaProjection
         mediaProjection.registerCallback(projectionCallback, uiHandler)
-        val outFile = File(outputPath)
+        val outFile = outputPath?.let(::File)
         capture = AudioPlaybackCapture(
             context = this,
             mediaProjection = mediaProjection,
@@ -236,7 +236,7 @@ class CaptureService : Service() {
             return
         }
         android.util.Log.i("AudioLens", "capture started=$started, server=$serverUrl, tokenLen=${token?.length ?: -1}")
-        val status = if (started) "Capture en cours (${outFile.name})" else "Echec de la capture"
+        val status = if (started) "Capture en cours" else "Echec de la capture"
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .notify(NOTIFICATION_ID, buildNotification(status))
     }
