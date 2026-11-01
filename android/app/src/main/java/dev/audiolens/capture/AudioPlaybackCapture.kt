@@ -14,9 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AudioPlaybackCapture(
     private val context: Context,
     private val mediaProjection: MediaProjection,
-    private val outputFile: File,
+    private val outputFile: File? = null,
     private val sampleRate: Int = 16000,
     private val onRms: (Float) -> Unit = {},
+    private val onChunk: (ByteArray) -> Unit = {},
 ) {
     private val running = AtomicBoolean(false)
     private var record: AudioRecord? = null
@@ -48,20 +49,27 @@ class AudioPlaybackCapture(
         running.set(true)
         audioRecord.startRecording()
         thread = Thread({
-            val wav = WavWriter(outputFile, sampleRate, 1)
+            val wav = outputFile?.let { WavWriter(it, sampleRate, 1) }
             val buffer = ShortArray(minBuffer)
             var total = 0L
             var lastRms = 0f
             while (running.get()) {
                 val read = audioRecord.read(buffer, 0, buffer.size)
                 if (read > 0) {
-                    wav.write(buffer, 0, read)
+                    wav?.write(buffer, 0, read)
                     total += read
                     var sum = 0.0
                     for (i in 0 until read) {
                         val v = buffer[i].toDouble()
                         sum += v * v
                     }
+                    val chunk = ByteArray(read * 2)
+                    var ci = 0
+                    for (i in 0 until read) {
+                        chunk[ci++] = (buffer[i].toInt() and 0xFF).toByte()
+                        chunk[ci++] = ((buffer[i].toInt() shr 8) and 0xFF).toByte()
+                    }
+                    onChunk(chunk)
                     lastRms = kotlin.math.sqrt(sum / read).toFloat()
                     onRms(lastRms)
                 }
@@ -69,7 +77,7 @@ class AudioPlaybackCapture(
             audioRecord.stop()
             audioRecord.release()
             record = null
-            wav.close()
+            wav?.close()
         }, "AudioLens-Capture").apply { start() }
         return true
     }
