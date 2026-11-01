@@ -57,6 +57,21 @@ async def test_finalize_on_stop(config: Config, monkeypatch) -> None:
     assert finals[0].src_lang == "ja"
 
 
+async def test_clip_buffers_past_segment_limit_until_stop(config: Config, monkeypatch) -> None:
+    engine = FakeEngine(make_spec())
+    session = Session(config, engine)  # type: ignore[arg-type]
+    session.set_live_config(mode="clip", partials=True)
+    await _force_vad(session, monkeypatch)
+    session.accept_audio(np.zeros(int((config.vad.max_segment_s + 1) * 16000), dtype="<i2").tobytes())
+
+    assert await session.process() == []
+    assert engine.calls == []
+    result = await session.finalize()
+    assert [item.type for item in result] == ["final", "done"]
+    assert len(engine.calls) == 1
+    assert await session.finalize() == []
+
+
 async def test_finalize_without_audio_is_noop(config: Config, monkeypatch) -> None:
     engine = FakeEngine(make_spec())
     session = Session(config, engine)  # type: ignore[arg-type]

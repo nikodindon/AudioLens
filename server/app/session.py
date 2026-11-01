@@ -102,6 +102,10 @@ class Session:
         if self._finalized or not self._current_chunks:
             return messages
 
+        # Clip mode buffers the complete recording and emits its result on stop.
+        if self.mode == "clip":
+            return messages
+
         audio = self._concat_current()
         if audio.size == 0:
             return messages
