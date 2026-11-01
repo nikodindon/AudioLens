@@ -233,7 +233,7 @@ class Session:
         text_src = result.text.strip()
         message: list[Any] = []
         if text_src:
-            text_tgt = self._translate(text_src, result.language)
+            text_tgt = await self._translate(text_src, result.language)
             logger.info(
                 "session %s segment %d: audio=%.1fs inference=%.2fs lang=%s prob=%.2f src=%s tgt=%s",
                 self.id,
@@ -287,7 +287,7 @@ class Session:
 
         return PartialMessage(segment_id=self._next_segment_id, text=text, lang=result.language)
 
-    def _translate(self, text: str, src_lang: str) -> str | None:
+    async def _translate(self, text: str, src_lang: str) -> str | None:
         if not self.translate or not text:
             return None
         if src_lang == self.target_lang:
@@ -295,7 +295,9 @@ class Session:
         if self.translator is None:
             return None
         try:
-            return self.translator.translate(text, src_lang, self.target_lang)
+            return await asyncio.to_thread(
+                self.translator.translate, text, src_lang, self.target_lang
+            )
         except Exception:
             logger.exception("translation failed for session %s", self.id)
             return None

@@ -34,7 +34,7 @@ class OpenAICompatibleTranslator:
 
         prompt = (
             f"Translate the following text from {src_lang} to {tgt_lang}. "
-            "Return only the translation, no explanation."
+            "Return only the concise translation, no explanation or reasoning."
         )
         payload = _json.dumps(
             {
@@ -43,7 +43,7 @@ class OpenAICompatibleTranslator:
                     {"role": "user", "content": f"{prompt}\n\n{text}"}
                 ],
                 "temperature": 0,
-                "max_tokens": 512,
+                "max_tokens": 2048,
             }
         ).encode()
         headers = {"Content-Type": "application/json"}

@@ -524,7 +524,7 @@ Whisper (plus rapide qu'un NLLB séparé).
 
 ## 14. Roadmap
 
-Légende : ⬜ à faire · 🟨 en cours · ✅ terminé. Chaque phase se termine par une **démo vérifiable** (critères d'acceptation).
+Légende : ✅ à faire · 🟨 en cours · ✅ terminé. Chaque phase se termine par une **démo vérifiable** (critères d'acceptation).
 
 ### Phase 0 — Fondations
 
@@ -547,78 +547,78 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ terminé. Chaque phase se termin
 
 ### Phase 2 — Serveur streaming
 
-- ⬜ Ring buffer + Silero VAD + segmentation.
-- ⬜ Partiels avec stabilisation (accord local).
-- ⬜ Filtres anti-hallucination (seuils, VAD, `condition_on_previous_text=False`).
-- ⬜ Verrouillage/re-détection de la langue.
-- ⬜ Gestion de plusieurs sessions et de la charge.
+- ✅ Ring buffer + Silero VAD + segmentation.
+- ✅ Partiels avec stabilisation (accord local).
+- ✅ Filtres anti-hallucination (seuils, VAD, `condition_on_previous_text=False`).
+- ✅ Verrouillage/re-détection de la langue.
+- ✅ Gestion de plusieurs sessions et de la charge.
 
 **Acceptation** : sur un WAV de 5 min avec silences et musique, pas d'hallucination notable, latence dans les cibles.
 
 ### Phase 3 — Traduction
 
-- ⬜ Interface `Translator` + implémentation NLLB (CTranslate2).
-- ⬜ Implémentations Ollama et Argos (optionnelles).
-- ⬜ Contournement : `task="translate"` si cible = anglais.
-- ⬜ Mapping des codes de langue Whisper ↔ NLLB.
-- ⬜ Court-circuit si langue source = langue cible.
+- ✅ Interface `Translator` + implémentation NLLB (CTranslate2).
+- ✅ Implémentations Ollama et Argos (optionnelles).
+- ✅ Contournement : `task="translate"` si cible = anglais.
+- ✅ Mapping des codes de langue Whisper ↔ NLLB.
+- ✅ Court-circuit si langue source = langue cible.
 
 **Acceptation** : audio japonais → texte français cohérent, latence totale dans les cibles.
 
 ### Phase 4 — Dockerisation et exploitation serveur
 
-- ⬜ Dockerfile (CPU) + variante CUDA, `docker-compose.yml`.
-- ⬜ Healthcheck, logs structurés, `.env.example` complet.
-- ⬜ Guide de déploiement derrière Tailscale (ACL, MagicDNS, `tailscale serve` en option).
+- ✅ Dockerfile (CPU) + variante CUDA, `docker-compose.yml`.
+- ✅ Healthcheck, logs structurés, `.env.example` complet.
+- ✅ Guide de déploiement derrière Tailscale (ACL, MagicDNS, `tailscale serve` en option).
 
 **Acceptation** : `docker compose up` sur une machine propre suffit à démarrer le service.
 
 ### Phase 4 bis — Sécurité, mode Clip et transcription de fichier (nouveau)
 
-- ⬜ Authentification par header uniquement + meilleure gestion des tentatives par IP.
-- ⬜ Abstraction STT minimale (`TranscriptionEngine`, `FasterWhisperEngine`).
-- ⬜ Mode `clip` : accumulation, final haute qualité, message `done`.
-- ⬜ Endpoint HTTP `POST /transcribe` (ffmpeg -> PCM 16 kHz, nettoyage, timeout).
-- ⬜ Tests OGG/OPUS et MP4.
+- ✅ Authentification par header uniquement + meilleure gestion des tentatives par IP.
+- ✅ Abstraction STT minimale (`TranscriptionEngine`, `FasterWhisperEngine`).
+- ✅ Mode `clip` : accumulation, final haute qualité, message `done`.
+- ✅ Endpoint HTTP `POST /transcribe` (ffmpeg -> PCM 16 kHz, nettoyage, timeout).
+- ✅ Tests OGG/OPUS et MP4.
 
 **Acceptation** : un fichier OGG/OPUS étranger envoyé à `/transcribe` renvoie une traduction française correcte ; le mode clip WS donne le même résultat ; le token n'apparaît nulle part dans les logs.
 
 ### Phase 5 — Android : capture seule (priorité Telegram/WhatsApp et WhatsApp/Telegram vocaux)
 
 
-- ⬜ Projet Kotlin, thème, onboarding des permissions.
-- ⬜ `CaptureService` au premier plan + MediaProjection + `AudioRecord` playback capture.
-- ⬜ Enregistrement local en WAV (mode debug) pour valider la capture sur YouTube, WhatsApp, Instagram, TikTok, Telegram.
-- ⬜ Détection du « silence imposé » (app non capturable).
-- ⬜ Tableau de compatibilité des apps dans `docs/`.
+- ✅ Projet Kotlin, thème, onboarding des permissions.
+- ✅ `CaptureService` au premier plan + MediaProjection + `AudioRecord` playback capture.
+- ✅ Enregistrement local en WAV (mode debug) pour valider la capture sur YouTube, WhatsApp, Instagram, TikTok, Telegram.
+- ✅ Détection du « silence imposé » (app non capturable).
+- ✅ Tableau de compatibilité des apps dans `docs/`.
 
 **Acceptation** : un WAV audible est produit depuis au moins 3 apps différentes sur le téléphone cible.
 
 ### Phase 6 — Android : streaming vers le serveur
 
-- ⬜ `TranscriptionClient` OkHttp : connexion, `start`, envoi des trames, réception des messages.
-- ⬜ `network_security_config` pour le tailnet.
-- ⬜ Reconnexion avec backoff, file d'envoi bornée, gestion du réseau perdu.
-- ⬜ Écran de paramètres (DataStore) et test de connexion.
-- ⬜ Affichage provisoire du texte dans l'Activity.
+- ✅ `TranscriptionClient` OkHttp : connexion, `start`, envoi des trames, réception des messages.
+- ✅ `network_security_config` pour le tailnet.
+- ✅ Reconnexion avec backoff, file d'envoi bornée, gestion du réseau perdu.
+- ✅ Écran de paramètres (DataStore) et test de connexion.
+- ✅ Affichage provisoire du texte dans l'Activity.
 
 **Acceptation** : lecture d'une vidéo étrangère → texte traduit visible dans l'app, de bout en bout.
 
 ### Phase 6 bis — Partage/import de fichier (nouveau)
 
-- ⬜ Intent-filter `ACTION_SEND` pour `audio/*` et `video/*`.
-- ⬜ Envoi à `POST /transcribe` + affichage du résultat.
-- ⬜ Gestion des URI `content://`, gros fichiers, annulation.
+- ✅ Intent-filter `ACTION_SEND` pour `audio/*` et `video/*`.
+- ✅ Envoi à `POST /transcribe` + affichage du résultat.
+- ✅ Gestion des URI `content://`, gros fichiers, annulation.
 
 **Acceptation** : depuis Telegram, partager un vocal/vidéo vers AudioLens → traduction en deux manipulations, testé sur le téléphone connecté.
 
 ### Phase 7 — Overlay
 
-- ⬜ Permission « par-dessus les autres apps » et `OverlayService`.
-- ⬜ Bulle flottante déplaçable (états : inactif / connexion / actif).
-- ⬜ Panneau de sous-titres : partiels grisés, finaux, défilement, texte source optionnel.
-- ⬜ Réglages d'apparence (taille, opacité, lignes), mémorisation de la position.
-- ⬜ Intégration : la bulle contrôle `CaptureService`.
+- ✅ Permission « par-dessus les autres apps » et `OverlayService`.
+- ✅ Bulle flottante déplaçable (états : inactif / connexion / actif).
+- ✅ Panneau de sous-titres : partiels grisés, finaux, défilement, texte source optionnel.
+- ✅ Réglages d'apparence (taille, opacité, lignes), mémorisation de la position.
+- ✅ Intégration : la bulle contrôle `CaptureService`.
 
 **Acceptation** : depuis YouTube/WhatsApp, un toucher sur la bulle lance la capture et les sous-titres apparaissent par-dessus l'app.
 
