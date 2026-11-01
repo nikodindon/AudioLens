@@ -100,3 +100,11 @@ def test_safe_dict_masks_token(config: Config) -> None:
     safe = config.safe_dict()
     assert safe["server"]["token"] == "***"
     assert TOKEN not in str(safe)
+
+
+def test_safe_dict_masks_translation_key(config_factory) -> None:
+    config = config_factory(translation={"openai_api_key": "example-private-key"})
+    safe = config.safe_dict()
+    assert safe["translation"]["openai_api_key"] == "***"
+    assert "example-private-key" not in str(safe)
+    assert config.translation.openai_api_key == "example-private-key"

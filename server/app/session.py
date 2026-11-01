@@ -239,15 +239,13 @@ class Session:
         if text_src:
             text_tgt = await self._translate(text_src, result.language)
             logger.info(
-                "session %s segment %d: audio=%.1fs inference=%.2fs lang=%s prob=%.2f src=%s tgt=%s",
+                "session %s segment %d: audio=%.1fs inference=%.2fs lang=%s prob=%.2f",
                 self.id,
                 self._next_segment_id,
                 result.duration_s,
                 result.inference_s,
                 result.language,
                 result.language_probability,
-                text_src,
-                text_tgt,
             )
             message.append(
                 FinalMessage(

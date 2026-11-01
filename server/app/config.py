@@ -175,11 +175,15 @@ class Config(BaseModel):
         return self.server.token.get_secret_value()
 
     def safe_dict(self) -> dict[str, Any]:
-        """Config representation that is safe to log (token masked)."""
+        """Config representation with credentials masked for logging."""
         data = self.model_dump(mode="json")
         server = dict(data["server"])
         server["token"] = "***"
         data["server"] = server
+        translation = dict(data["translation"])
+        if translation.get("openai_api_key") is not None:
+            translation["openai_api_key"] = "***"
+        data["translation"] = translation
         return data
 
 

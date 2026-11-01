@@ -116,7 +116,6 @@ class CaptureService : Service() {
         if (serverUrl != null && !token.isNullOrEmpty()) {
             android.util.Log.i("AudioLensWS", "creating ws url=" + serverUrl)
             val client = LiveWebSocketClient(serverUrl, token, { msg ->
-                android.util.Log.i("AudioLensWS", "RX=" + msg)
                 try {
                     val j = org.json.JSONObject(msg)
                     uiHandler.post {
