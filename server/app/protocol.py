@@ -33,6 +33,7 @@ class StartMessage(BaseModel):
     audio: AudioFormat = Field(default_factory=AudioFormat)
     source_lang: str = "auto"
     target_lang: str = "fr"
+    mode: Literal["live", "clip"] = "live"
     # A *request*, not a guarantee: the server only honours models listed in
     # whisper.allowed_models, otherwise it uses the configured default model.
     whisper_model: str | None = None
@@ -140,4 +141,13 @@ class PongMessage(BaseModel):
     type: Literal["pong"] = "pong"
 
 
-ServerMessage = ReadyMessage | PartialMessage | FinalMessage | ErrorMessage | PongMessage
+class DoneMessage(BaseModel):
+    type: Literal["done"] = "done"
+    segment_count: int
+    src_lang: str
+    src_lang_prob: float
+
+
+ServerMessage = (
+    ReadyMessage | PartialMessage | FinalMessage | ErrorMessage | PongMessage | DoneMessage
+)

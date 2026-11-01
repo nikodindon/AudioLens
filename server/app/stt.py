@@ -19,6 +19,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 from faster_whisper import WhisperModel
@@ -166,6 +167,29 @@ def resolve_spec(config: WhisperConfig, requested_model: str | None = None) -> M
         requested_compute_type=requested_compute,
         fallback_reason=fallback_reason,
     )
+
+
+class TranscriptionEngine(Protocol):
+    """Minimal STT boundary (Phase 4 bis, changement 2)."""
+
+    async def ensure_model(self, requested_model: str | None = None): ...
+
+    async def transcribe(
+        self,
+        audio,
+        *,
+        language=None,
+        requested_model=None,
+        task="transcribe",
+        beam_size=None,
+        temperature=0.0,
+        no_speech_threshold=0.6,
+        compression_ratio_threshold=2.4,
+    ): ...
+
+    def loaded_models(self) -> list[str]: ...
+
+    async def reload(self): ...
 
 
 class WhisperEngine:
@@ -337,3 +361,9 @@ class WhisperEngine:
             self._models.clear()
             self._current_spec = None
         return await self.ensure_model(None)
+
+
+# Backwards-compatible alias used by tests and older callers.
+WhisperEngine = WhisperEngine
+FasterWhisperEngine = WhisperEngine
+TranscriptionEngine.register(FasterWhisperEngine)

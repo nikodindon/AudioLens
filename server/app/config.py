@@ -54,6 +54,7 @@ class ServerConfig(BaseModel):
     token: SecretStr
     max_sessions: int = Field(default=2, ge=1, le=8)
     max_audio_seconds: int = Field(default=300, ge=10, le=7200)
+    allow_query_token: bool = False
     log_level: str = "INFO"
 
     @field_validator("token")
@@ -151,11 +152,18 @@ class TranslationConfig(BaseModel):
         return normalized
 
 
+class SttConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    engine: Literal["faster-whisper"] = "faster-whisper"
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     server: ServerConfig
     whisper: WhisperConfig = Field(default_factory=WhisperConfig)
+    stt: SttConfig = Field(default_factory=SttConfig)
     vad: VadConfig = Field(default_factory=VadConfig)
     translation: TranslationConfig = Field(default_factory=TranslationConfig)
 

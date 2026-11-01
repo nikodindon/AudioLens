@@ -57,9 +57,7 @@ def to_pcm16(samples: np.ndarray) -> bytes:
 
 async def run(args: argparse.Namespace) -> int:
     url = args.url
-    separator = "&" if "?" in url else "?"
-    if "token=" not in url:
-        url = f"{url}{separator}token={args.token}"
+    headers = {"Authorization": f"Bearer {args.token}"}
 
     audio = load_wav(Path(args.wav))
     if audio.size == 0:
@@ -84,7 +82,9 @@ async def run(args: argparse.Namespace) -> int:
     finals: list[dict[str, Any]] = []
     started = time.monotonic()
     send_deadline = started
-    async with connect(url, max_size=None, open_timeout=args.timeout) as ws:
+    async with connect(
+        url, max_size=None, open_timeout=args.timeout, additional_headers=headers
+    ) as ws:
         await ws.send(json.dumps(start_message))
         ready_raw = await ws.recv()
         if isinstance(ready_raw, bytes):

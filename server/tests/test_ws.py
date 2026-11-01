@@ -82,7 +82,7 @@ def test_health_is_public(config: Config) -> None:
 
 def test_invalid_token_is_rejected(config: Config) -> None:
     with make_client(config) as client:
-        with client.websocket_connect("/ws?token=wrong") as ws:
+        with client.websocket_connect("/ws", headers={"Authorization": "Bearer wrong"}) as ws:
             message = ws.receive_json()
             assert message["type"] == "error"
             assert message["code"] == "unauthorized"
@@ -93,7 +93,7 @@ def test_invalid_token_is_rejected(config: Config) -> None:
 
 def test_start_stream_stop_roundtrip(config: Config) -> None:
     with make_client(config) as client:
-        with client.websocket_connect(f"/ws?token={TOKEN}") as ws:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as ws:
             ws.send_text(json.dumps(START))
             ready = ws.receive_json()
             assert ready["type"] == "ready"
@@ -121,7 +121,7 @@ def test_start_stream_stop_roundtrip(config: Config) -> None:
 
 def test_disallowed_model_falls_back_to_config(config: Config) -> None:
     with make_client(config) as client:
-        with client.websocket_connect(f"/ws?token={TOKEN}") as ws:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as ws:
             payload = dict(START, whisper_model="large-v3")
             ws.send_text(json.dumps(payload))
             ready = ws.receive_json()
@@ -139,7 +139,7 @@ def test_token_can_be_sent_as_bearer_header(config: Config) -> None:
 
 def test_bad_first_message_is_rejected(config: Config) -> None:
     with make_client(config) as client:
-        with client.websocket_connect(f"/ws?token={TOKEN}") as ws:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as ws:
             ws.send_text('{"type":"ping"}')
             message = ws.receive_json()
             assert message["code"] == "bad_request"
@@ -147,7 +147,7 @@ def test_bad_first_message_is_rejected(config: Config) -> None:
 
 def test_unsupported_protocol_is_rejected(config: Config) -> None:
     with make_client(config) as client:
-        with client.websocket_connect(f"/ws?token={TOKEN}") as ws:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as ws:
             ws.send_text(json.dumps(dict(START, protocol=99)))
             message = ws.receive_json()
             assert message["code"] == "unsupported_protocol"
@@ -156,10 +156,12 @@ def test_unsupported_protocol_is_rejected(config: Config) -> None:
 def test_session_limit(config_factory) -> None:
     config = config_factory(server={"max_sessions": 1})
     with make_client(config) as client:
-        with client.websocket_connect(f"/ws?token={TOKEN}") as first:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as first:
             first.send_text(json.dumps(START))
             assert first.receive_json()["type"] == "ready"
-            with client.websocket_connect(f"/ws?token={TOKEN}") as second:
+            with client.websocket_connect(
+                "/ws", headers={"Authorization": f"Bearer {TOKEN}"}
+            ) as second:
                 message = second.receive_json()
                 assert message["code"] == "session_limit"
 
@@ -167,5 +169,5 @@ def test_session_limit(config_factory) -> None:
 def test_reload_requires_token(config: Config) -> None:
     with make_client(config) as client:
         assert client.post("/admin/reload").status_code == 401
-        assert client.post(f"/admin/reload?token={TOKEN}").status_code == 200
+        assert client.post("/admin/reload", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 200
         assert client.get("/health").json()["model"] == "small"

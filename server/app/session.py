@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from .config import Config
-from .protocol import FinalMessage, PartialMessage
+from .protocol import DoneMessage, FinalMessage, PartialMessage
 from .stt import SAMPLE_RATE, WhisperEngine
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,9 @@ class Session:
         self.target_lang = config.translation.target_lang
         self.translate = True
         self.partials = True
+        self.mode: str = "live"
+        self._clip_done = False
+        self._clip_silence_s = 2.5
 
         self._max_seconds = config.server.max_audio_seconds
         self._vad_model: Any = None
@@ -105,7 +108,11 @@ class Session:
 
         vad_prob = await self._vad_probs(audio)
         speech_flags = vad_prob >= self.config.vad.threshold
-        silence_windows = max(1, int(self.config.vad.min_silence_ms / (SILENCE_WINDOW_S * 1000)))
+        base_silence = max(1, int(self.config.vad.min_silence_ms / (SILENCE_WINDOW_S * 1000)))
+        if self.mode == "clip":
+            silence_windows = max(base_silence, int(self._clip_silence_s / SILENCE_WINDOW_S))
+        else:
+            silence_windows = base_silence
         self._speech_seen = bool(speech_flags.any())
 
         # Trailing silence detection.
@@ -126,11 +133,23 @@ class Session:
         )
 
         if finalize_now:
-            messages.extend(await self._finalize_current(audio, speech_flags))
+            finals = await self._finalize_current(audio, speech_flags)
+            messages.extend(finals)
+            if self.mode == "clip" and finals and not self._clip_done:
+                messages.append(
+                    DoneMessage(
+                        segment_count=len(finals),
+                        src_lang=finals[0].src_lang,
+                        src_lang_prob=finals[0].src_lang_prob,
+                    )
+                )
+                self._clip_done = True
             return messages
 
         # Partial: roughly once per second of new speech.
         speech_duration = self._current_seconds
+        if self.mode == "clip":
+            self.partials = False
         partial_interval = 1.0
         if self.partials and self._speech_seen and speech_duration >= 1.0:
             if (speech_duration - self._last_partial_seconds) >= partial_interval:
@@ -150,11 +169,22 @@ class Session:
             return []
         self._finalized = True
         messages: list[Any] = []
+        finals: list[Any] = []
         if self._current_chunks:
             audio = self._concat_current()
             if audio.size:
                 speech_flags = np.ones((max(1, audio.size // FRAMES_PER_WINDOW),), dtype=bool)
-                messages.extend(await self._finalize_current(audio, speech_flags, final_stop=True))
+                finals = await self._finalize_current(audio, speech_flags, final_stop=True)
+            messages.extend(finals)
+            if self.mode == "clip" and finals and not self._clip_done:
+                messages.append(
+                    DoneMessage(
+                        segment_count=len(finals),
+                        src_lang=finals[0].src_lang,
+                        src_lang_prob=finals[0].src_lang_prob,
+                    )
+                )
+                self._clip_done = True
         self._current_chunks.clear()
         self._current_seconds = 0.0
         return messages
@@ -276,6 +306,7 @@ class Session:
         target_lang: str | None = None,
         translate: bool | None = None,
         partials: bool | None = None,
+        mode: str | None = None,
     ) -> None:
         if source_lang is not None:
             self.source_lang = source_lang
@@ -285,6 +316,8 @@ class Session:
             self.translate = translate
         if partials is not None:
             self.partials = partials
+        if mode is not None:
+            self.mode = mode
 
     def update_config(self, config: Config) -> None:
         self.config = config

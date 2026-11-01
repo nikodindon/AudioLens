@@ -16,7 +16,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+import numpy as np
+from fastapi import (
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from starlette.websockets import WebSocketState
 
 from . import __version__
@@ -45,6 +55,7 @@ WS_BAD_REQUEST = 4400
 WS_TOO_MANY_SESSIONS = 4429
 WS_TIMEOUT = 4408
 WS_INTERNAL_ERROR = 1011
+_FAILED_ATTEMPTS: dict[str, int] = {}
 
 
 def configure_logging(level: str) -> None:
@@ -60,17 +71,29 @@ def _token_matches(provided: str | None, expected: str) -> bool:
     return hmac.compare_digest(provided, expected)
 
 
-def _extract_token(websocket: WebSocket) -> str | None:
-    token = websocket.query_params.get("token")
-    if token:
-        return token
+def _extract_token(websocket: WebSocket, allow_query: bool) -> str | None:
+    if allow_query:
+        token = websocket.query_params.get("token")
+        if token:
+            return token
     authorization = websocket.headers.get("authorization", "")
     if authorization.lower().startswith("bearer "):
         return authorization[7:].strip()
     return None
 
 
-def _extract_http_token(request: Request) -> str | None:
+def _extract_token_for_http(request: Request, config: Config) -> str | None:
+    # allow_query_token controls query tokens on HTTP too
+    token = request.query_params.get("token") if config.server.allow_query_token else None
+    if token:
+        return token
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return None
+
+
+def _unused_extract_http_token(request: Request) -> str | None:
     token = request.query_params.get("token")
     if token:
         return token
@@ -156,10 +179,121 @@ def create_app(
             "translation_engine": current.translation.engine,
         }
 
+    @app.post("/transcribe")
+    async def transcribe_file(
+        request: Request,
+        file: UploadFile = File(...),
+        target_lang: str | None = Query(default=None),
+        source_lang: str = Query(default="auto"),
+        whisper_model: str | None = Query(default=None),
+    ) -> dict[str, Any]:
+        current: Config = app.state.config
+        if not _token_matches(_extract_token_for_http(request, current), current.token):
+            raise HTTPException(status_code=401, detail="invalid token")
+        data = await file.read()
+        if len(data) > 25 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="file too large (max 25 MB)")
+        import os
+        import subprocess
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp(prefix="audiolens_")
+        try:
+            suffix = os.path.splitext(file.filename or "")[1] or ".bin"
+            src_path = os.path.join(tmpdir, f"input{suffix}")
+            wav_path = os.path.join(tmpdir, "converted.wav")
+
+            def _write_src() -> None:
+                with open(src_path, "wb") as fh:
+                    fh.write(data)
+
+            await asyncio.to_thread(_write_src)
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    src_path,
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-sample_fmt",
+                    "s16",
+                    wav_path,
+                ],
+                capture_output=True,
+            )
+            wav_exists = await asyncio.to_thread(os.path.isfile, wav_path)
+            if proc.returncode != 0 or not wav_exists:
+                raise HTTPException(
+                    status_code=415, detail="unsupported or unreadable audio/video file"
+                )
+            import wave
+
+            with wave.open(wav_path, "rb") as wav:
+                frames = wav.readframes(wav.getnframes())
+                duration = wav.getnframes() / wav.getframerate()
+            if duration > current.server.max_audio_seconds:
+                raise HTTPException(status_code=413, detail=f"audio too long ({duration:.0f}s)")
+            audio = np.frombuffer(frames, dtype="<i2").astype(np.float32) / 32768.0
+            engine: WhisperEngine = app.state.engine
+            try:
+                spec = await engine.ensure_model(whisper_model)
+            except ModelLoadError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            result = await engine.transcribe(
+                audio,
+                language=None if source_lang == "auto" else source_lang,
+                task="transcribe",
+                beam_size=current.whisper.beam_size,
+            )
+            effective_target = target_lang or current.translation.target_lang
+            segments = []
+            for index, segment in enumerate(result.segments):
+                text_src = segment.text.strip()
+                if not text_src:
+                    continue
+                text_tgt = None
+                if current.translation is not None:
+                    translator = getattr(app.state, "translator", None)
+                    if translator is not None:
+                        try:
+                            text_tgt = await asyncio.to_thread(
+                                translator.translate, text_src, result.language, effective_target
+                            )
+                        except Exception:
+                            text_tgt = None
+                if result.language == effective_target:
+                    text_tgt = text_tgt or text_src
+                segments.append(
+                    {
+                        "segment_id": index,
+                        "start_ms": round(segment.start_s * 1000),
+                        "end_ms": round(segment.end_s * 1000),
+                        "text_src": text_src,
+                        "text_tgt": text_tgt,
+                    }
+                )
+            return {
+                "src_lang": result.language,
+                "src_lang_prob": round(float(result.language_probability), 4),
+                "duration_s": round(result.duration_s, 2),
+                "model": spec.model,
+                "device": spec.device,
+                "compute_type": spec.compute_type,
+                "segments": segments,
+            }
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
     @app.post("/admin/reload")
     async def reload_config(request: Request) -> dict[str, Any]:
         current: Config = app.state.config
-        if not _token_matches(_extract_http_token(request), current.token):
+        if not _token_matches(_extract_token_for_http(request, current), current.token):
             raise HTTPException(status_code=401, detail="invalid token")
         if app.state.config_path is None:
             raise HTTPException(status_code=409, detail="no config file to reload")
@@ -186,10 +320,18 @@ def create_app(
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.accept()
         current: Config = app.state.config
-        if not _token_matches(_extract_token(websocket), current.token):
+        client_ip = websocket.client.host if websocket.client else "unknown"
+        delay = min(2.0, 0.1 * (2 ** min(_FAILED_ATTEMPTS.get(client_ip, 0), 4)))
+        if delay:
+            await asyncio.sleep(delay)
+        if not _token_matches(
+            _extract_token(websocket, current.server.allow_query_token), current.token
+        ):
             logger.warning("rejected WebSocket: invalid or missing token")
+            _FAILED_ATTEMPTS[client_ip] = _FAILED_ATTEMPTS.get(client_ip, 0) + 1
             await _fail(websocket, "unauthorized", "invalid or missing token", WS_UNAUTHORIZED)
             return
+        _FAILED_ATTEMPTS[client_ip] = 0
         if app.state.sessions >= current.server.max_sessions:
             await _fail(
                 websocket,
