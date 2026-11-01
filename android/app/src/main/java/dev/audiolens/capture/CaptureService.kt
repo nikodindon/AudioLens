@@ -87,8 +87,13 @@ class CaptureService : Service() {
                 android.util.Log.i("AudioLensWS", "RX=" + msg)
                 try {
                     val j = org.json.JSONObject(msg)
-                    val t = j.optString("text_tgt").takeIf { it.isNotBlank() } ?: (j.optString("text_src").takeIf { it.isNotBlank() } ?: j.optString("text"))
-                    if (t.isNotBlank()) uiHandler.post { overlayView?.text = t }
+                    // Show a single, readable final segment; ignore noisy partials.
+                    if (j.optString("type") != "final") { /* ignore */ } else {
+                    val src = j.optString("text_src", "").trim()
+                    val tgt = j.optString("text_tgt", "").trim()
+                    val text = if (tgt.isNotBlank()) tgt + "\n" + src else src
+                    if (text.isNotBlank()) uiHandler.post { overlayView?.text = text }
+                    }
                 } catch (_: Exception) {}
             }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })
             live = client
