@@ -175,3 +175,21 @@ pipeline and returns `{ "src_lang": "ru", "segments": [ { "start_ms":..., "end_m
   `?token=<TOKEN>` or `Authorization: Bearer <TOKEN>`. Returns the effective
   model/device/compute type; `409` when the server was started without a config
   file.
+
+### Android send queue and shutdown
+
+Android limits OkHttp's pending WebSocket payload to 256,000 bytes (about eight
+seconds of 16 kHz mono PCM16, including any queued control text). When the next
+frame would exceed that limit, or a send is rejected, capture stops and reports
+that audio was not sent through the application and a notification. Already
+queued frames are sent before `stop`; the rejected frame and subsequent audio
+are not sent. This is an explicit interruption, not a promise of lossless
+streaming or automatic reconnection. The queue limit bounds client buffering,
+but does not measure audio already accepted by the network or server.
+
+On a normal stop Android stops capture, sends `stop`, and keeps the connection
+open for final messages and the server close. It waits at most 60 seconds;
+failed or timed-out finalization is reported as potentially incomplete. An
+operating-system process kill cannot guarantee delivery of the final segment.
+Clip mode buffers its recording until `stop`, bounded by
+`server.max_audio_seconds`; long clips increase memory and inference time.

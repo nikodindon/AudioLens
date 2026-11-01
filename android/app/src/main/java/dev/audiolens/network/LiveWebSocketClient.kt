@@ -62,8 +62,11 @@ class LiveWebSocketClient(
         )
     }
 
-    fun sendBinary(data: ByteArray) {
-        webSocket?.send(okio.Buffer().write(data, 0, data.size).readByteString(data.size.toLong()))
+    fun sendBinary(data: ByteArray): AudioSendResult {
+        val socket = webSocket ?: return AudioSendResult.DISCONNECTED
+        if (closing) return AudioSendResult.DISCONNECTED
+        if (!AudioQueuePolicy.canEnqueue(socket.queueSize(), data.size)) return AudioSendResult.OVERLOADED
+        return if (socket.send(okio.Buffer().write(data).readByteString())) AudioSendResult.SENT else AudioSendResult.DISCONNECTED
     }
 
     fun finish(onComplete: (Boolean) -> Unit) {

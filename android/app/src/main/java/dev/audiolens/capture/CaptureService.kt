@@ -22,6 +22,8 @@ import android.widget.TextView
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dev.audiolens.network.LiveWebSocketClient
+import dev.audiolens.network.AudioSendResult
+import java.util.concurrent.atomic.AtomicBoolean
 import dev.audiolens.state.LiveTranscriptHolder
 import dev.audiolens.state.CaptureStatus
 import java.io.File
@@ -50,6 +52,7 @@ class CaptureService : Service() {
     private var stopping = false
     private var finished = false
     private var started = false
+    private val sendFailureReported = AtomicBoolean(false)
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             stopCapture()
@@ -222,7 +225,24 @@ class CaptureService : Service() {
             context = this,
             mediaProjection = mediaProjection,
             outputFile = outFile,
-            onChunk = { chunk -> live?.sendBinary(chunk) },
+            onChunk = { chunk ->
+                val result = live?.sendBinary(chunk) ?: AudioSendResult.DISCONNECTED
+                if (result != AudioSendResult.SENT && sendFailureReported.compareAndSet(false, true)) {
+                    uiHandler.post {
+                        if (!stopping) {
+                            val reason = if (result == AudioSendResult.OVERLOADED) {
+                                "Réseau saturé : capture arrêtée, une partie de l’audio n’a pas été envoyée."
+                            } else {
+                                "Connexion interrompue : capture arrêtée, une partie de l’audio n’a pas été envoyée."
+                            }
+                            LiveTranscriptHolder.error = reason
+                            overlayView?.text = reason
+                            notifyCaptureError(reason)
+                            stopCapture()
+                        }
+                    }
+                }
+            },
             onFailure = { error ->
                 android.util.Log.e("AudioLens", "Capture stopped unexpectedly", error)
                 uiHandler.post {
@@ -314,6 +334,17 @@ class CaptureService : Service() {
         LiveTranscriptHolder.capturing = false
         LiveTranscriptHolder.status = if (LiveTranscriptHolder.error == null) CaptureStatus.READY else CaptureStatus.ERROR
         super.onDestroy()
+    }
+
+    private fun notifyCaptureError(content: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("AudioLens · Capture interrompue")
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setAutoCancel(true)
+            .build()
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(2, notification)
     }
 
     private fun buildNotification(content: String): Notification {
