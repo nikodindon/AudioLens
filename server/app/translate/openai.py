@@ -9,6 +9,8 @@ from .base import passthrough_if_same
 
 logger = logging.getLogger(__name__)
 
+_LANG = {"fr": "French", "ru": "Russian"}
+
 
 class OpenAICompatibleTranslator:
     engine = "openai"
@@ -32,8 +34,10 @@ class OpenAICompatibleTranslator:
         if not (self.base_url and self.model):
             return None
 
+        src_name = _LANG.get(src_lang.lower(), src_lang)
+        tgt_name = _LANG.get(tgt_lang.lower(), tgt_lang)
         prompt = (
-            f"Translate the following text from {src_lang} to {tgt_lang}. "
+            f"Translate the following text from {src_name} to {tgt_name}. "
             "Return only the concise translation, no explanation or reasoning."
         )
         payload = _json.dumps(
