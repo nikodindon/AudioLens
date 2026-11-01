@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dev.audiolens.network.LiveWebSocketClient
+import dev.audiolens.state.LiveTranscriptHolder
 import java.io.File
 
 class CaptureService : Service() {
@@ -92,7 +93,10 @@ class CaptureService : Service() {
                     val src = j.optString("text_src", "").trim()
                     val tgt = j.optString("text_tgt", "").trim()
                     val text = if (tgt.isNotBlank()) tgt + "\n" + src else src
-                    if (text.isNotBlank()) uiHandler.post { overlayView?.text = text }
+                    if (text.isNotBlank()) uiHandler.post {
+                        overlayView?.text = text
+                        LiveTranscriptHolder.lines.add(text.replace("\n", " / "))
+                    }
                     }
                 } catch (_: Exception) {}
             }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })

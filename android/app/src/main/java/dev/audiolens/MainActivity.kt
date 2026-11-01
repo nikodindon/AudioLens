@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import dev.audiolens.state.LiveTranscriptHolder
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -190,6 +193,11 @@ private fun AppScreen(activity: MainActivity) {
         }, label = { Text("Mode (live/clip)") }, modifier = Modifier.fillMaxWidth())
 
         Text(status)
+        LazyColumn(horizontalAlignment = Alignment.CenterHorizontally) {
+            items(LiveTranscriptHolder.lines) { msg ->
+                Text(msg, style = MaterialTheme.typography.bodySmall)
+            }
+        }
         Button(onClick = {
             status = "Demarrage capture..."
             activity.requestPermissionsCapture(context)
