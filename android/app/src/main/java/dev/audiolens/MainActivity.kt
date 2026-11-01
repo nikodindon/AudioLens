@@ -167,6 +167,7 @@ private fun AppScreen(activity: MainActivity) {
     var token by remember { mutableStateOf(prefs.getString("token", "")!!) }
     var targetLang by remember { mutableStateOf(prefs.getString("target_lang", "fr")!!) }
     var mode by remember { mutableStateOf(prefs.getString("mode", "live")!!) }
+    var whisperModel by remember { mutableStateOf(prefs.getString("whisper_model", "small")!!) }
     var status by remember { mutableStateOf("Pret") }
 
     Column(
@@ -191,6 +192,10 @@ private fun AppScreen(activity: MainActivity) {
             mode = it
             prefs.edit().putString("mode", it).apply()
         }, label = { Text("Mode (live/clip)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = whisperModel, onValueChange = {
+            whisperModel = it
+            prefs.edit().putString("whisper_model", it).apply()
+        }, label = { Text("Whisper model") }, modifier = Modifier.fillMaxWidth())
 
         Text(status)
         LazyColumn(horizontalAlignment = Alignment.CenterHorizontally) {
