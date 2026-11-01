@@ -55,8 +55,10 @@ class FakeEngine:
         return self.spec
 
 
-def make_client(config: Config) -> TestClient:
-    app = create_app(config=config, engine=FakeEngine(ModelSpec("small", "cpu", "int8")))
+def make_client(config: Config, config_path: str | None = None) -> TestClient:
+    app = create_app(
+        config=config, engine=FakeEngine(ModelSpec("small", "cpu", "int8")), config_path=config_path
+    )
     return TestClient(app)
 
 
@@ -188,8 +190,8 @@ def test_session_limit(config_factory) -> None:
                 assert message["code"] == "session_limit"
 
 
-def test_reload_requires_token(config: Config) -> None:
-    with make_client(config) as client:
+def test_reload_requires_token(config: Config, tmp_path) -> None:
+    with make_client(config, config_path=str(tmp_path / "config.yaml")) as client:
         assert client.post("/admin/reload").status_code == 401
         assert (
             client.post("/admin/reload", headers={"Authorization": f"Bearer {TOKEN}"}).status_code
