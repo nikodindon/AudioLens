@@ -141,3 +141,93 @@ async def test_engine_evicts_old_models(config_factory, monkeypatch) -> None:
 def test_config_accepts_no_whitelist_entries_beyond_default(config_factory) -> None:
     config: Config = config_factory()
     assert config.whisper.allowed_models == ["tiny", "base", "small"]
+
+
+async def test_lazy_segments_run_off_event_loop(config_factory, monkeypatch) -> None:
+    import asyncio
+    import threading
+
+    caller = threading.get_ident()
+    threads = []
+
+    class LazyModel(_FakeModel):
+        def transcribe(self, audio, **kwargs):
+            segments, info = super().transcribe(audio, **kwargs)
+
+            def generate():
+                threads.append(threading.get_ident())
+                yield from segments
+
+            return generate(), info
+
+    monkeypatch.setattr(WhisperEngine, "_construct", lambda self, spec: LazyModel(spec))
+    engine = WhisperEngine(config_factory())
+    result = await engine.transcribe(np.zeros(16000, dtype=np.float32))
+    assert result.text == "hello"
+    assert threads and threads[0] != caller
+    await asyncio.sleep(0)
+
+
+async def test_cancel_keeps_inference_serialized_until_worker_finishes(config_factory, monkeypatch):
+    import asyncio
+    import threading
+
+    entered, unblock = threading.Event(), threading.Event()
+    invocations = []
+
+    class BlockingModel(_FakeModel):
+        def transcribe(self, audio, **kwargs):
+            segments, info = super().transcribe(audio, **kwargs)
+
+            def generate():
+                invocations.append(1)
+                entered.set()
+                if not unblock.wait(3):
+                    raise TimeoutError("test worker did not finish")
+                yield from segments
+
+            return generate(), info
+
+    monkeypatch.setattr(WhisperEngine, "_construct", lambda self, spec: BlockingModel(spec))
+    engine = WhisperEngine(config_factory())
+    audio = np.zeros(16000, dtype=np.float32)
+    first = asyncio.create_task(engine.transcribe(audio))
+    try:
+        assert await asyncio.to_thread(entered.wait, 2)
+        first.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        second = asyncio.create_task(engine.transcribe(audio))
+        await asyncio.sleep(0.05)
+        assert len(invocations) == 1
+        assert not second.done()
+    finally:
+        unblock.set()
+    result = await asyncio.wait_for(second, 3)
+    assert result.text == "hello"
+    assert len(invocations) == 2
+
+
+async def test_generator_failure_releases_semaphore(config_factory, monkeypatch):
+    import asyncio
+
+    class FailingOnce(_FakeModel):
+        failures = 0
+
+        def transcribe(self, audio, **kwargs):
+            segments, info = super().transcribe(audio, **kwargs)
+
+            def generate():
+                self.failures += 1
+                if self.failures == 1:
+                    raise ValueError("synthetic failure")
+                yield from segments
+
+            return generate(), info
+
+    monkeypatch.setattr(WhisperEngine, "_construct", lambda self, spec: FailingOnce(spec))
+    engine = WhisperEngine(config_factory())
+    audio = np.zeros(16000, dtype=np.float32)
+    with pytest.raises(ValueError, match="synthetic failure"):
+        await engine.transcribe(audio)
+    assert (await asyncio.wait_for(engine.transcribe(audio), 2)).text == "hello"

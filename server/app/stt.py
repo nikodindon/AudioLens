@@ -328,29 +328,51 @@ class WhisperEngine:
 
         with measure("stt_wait"):
             await self._inference_semaphore.acquire()
+        release_in_callback = False
         try:
             start = time.monotonic()
-            with measure("stt_inference"):
-                segments, info = await asyncio.to_thread(
-                    model.transcribe,
-                    audio,
-                    language=language,
-                    task=task,
-                    beam_size=beam,
-                    temperature=temperature,
-                    no_speech_threshold=no_speech_threshold,
-                    compression_ratio_threshold=compression_ratio_threshold,
-                    condition_on_previous_text=False,
-                    vad_filter=False,
-                    word_timestamps=False,
-                )
-                collected = [
-                    Segment(start_s=segment.start, end_s=segment.end, text=segment.text)
-                    for segment in segments
-                ]
+
+            def run_inference():
+                with measure("stt_inference"):
+                    segments, info = model.transcribe(
+                        audio,
+                        language=language,
+                        task=task,
+                        beam_size=beam,
+                        temperature=temperature,
+                        no_speech_threshold=no_speech_threshold,
+                        compression_ratio_threshold=compression_ratio_threshold,
+                        condition_on_previous_text=False,
+                        vad_filter=False,
+                        word_timestamps=False,
+                    )
+                    collected = [
+                        Segment(start_s=segment.start, end_s=segment.end, text=segment.text)
+                        for segment in segments
+                    ]
+                    return collected, info
+
+            worker = asyncio.create_task(asyncio.to_thread(run_inference))
+            try:
+                collected, info = await asyncio.shield(worker)
+            except asyncio.CancelledError:
+                # Cancellation cannot stop the native worker. Keep the semaphore
+                # until it finishes so another session cannot overlap inference.
+                def release_finished(task):
+                    try:
+                        task.exception()
+                    except asyncio.CancelledError:
+                        pass
+                    finally:
+                        self._inference_semaphore.release()
+
+                release_in_callback = True
+                worker.add_done_callback(release_finished)
+                raise
             inference_s = time.monotonic() - start
         finally:
-            self._inference_semaphore.release()
+            if not release_in_callback:
+                self._inference_semaphore.release()
 
         return Transcription(
             segments=collected,
