@@ -14,11 +14,10 @@ latence de bout en bout de la session Telegram validée.
 2. La finalisation attend le silence configuré ou la limite de segment. Des
    partiels peuvent déclencher une inférence environ chaque seconde de segment.
    Ils concurrencent les finaux pour le sémaphore d'inférence partagé.
-3. Whisper s'exécute sous un sémaphore global. `model.transcribe` est appelé
-   dans un thread, mais les segments retournés sont consommés ensuite sur la
-   boucle asyncio ; si le générateur fait du travail à l'itération, cette partie
-   peut bloquer la boucle. Le temps enregistré ne comprend pas l'attente du
-   sémaphore, car le chronomètre démarre après son acquisition.
+3. Whisper s'exécute sous un sémaphore global. Sur `dev`, l'appel à
+   `model.transcribe` et la consommation de son générateur sont exécutés dans
+   un thread ; auparavant, l'itération bloquait la boucle asyncio. La mesure
+   `stt_wait` distingue l'attente du sémaphore de l'inférence.
 4. Pour un final, le serveur attend ensuite la traduction avant de transmettre
    le résultat et de reprendre la lecture WebSocket de cette session. Le moteur
    HTTP peut attendre jusqu'à 30 secondes. Pendant ces étapes, les trames
@@ -47,8 +46,8 @@ Aucun nouveau benchmark n'a été lancé contre le serveur actif.
 - Comparer médiane et p95 sur plusieurs longueurs de trame, langues, silences,
   conditions réseau et sessions concurrentes ; inclure les erreurs et délais
   de traduction, pas uniquement les résultats réussis.
-- Tester d'abord un VAD incrémental et le déplacement de l'itération Whisper
-  hors de la boucle. Ne découpler réception et inférence qu'avec une file bornée,
+- Poursuivre les tests du VAD incrémental et de l'itération Whisper hors de la
+  boucle. Ne découpler réception et inférence qu'avec une file bornée,
   une politique de surcharge explicite, l'ordre des segments et des tests de
   finalisation ; mesurer l'effet sur la session réelle avant déploiement.
 

@@ -1,5 +1,8 @@
 # Latence — benchmark synthétique isolé
 
+> Rapport historique. L'itération Whisper a ensuite été déplacée hors de la boucle
+> asyncio sur `dev` ; voir [la comparaison A/B](performance-ab-2026-11-01.md).
+
 ## Mesure et limites
 
 Mesure effectuée le 1 novembre 2026 sur le PC de développement, sans accéder au
