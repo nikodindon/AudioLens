@@ -50,6 +50,9 @@ src = ["app", "tools", "tests"]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 ignore = ["B008"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["tools"]
+
 [tool.mypy]
 python_version = "3.11"
 files = ["app", "tools"]

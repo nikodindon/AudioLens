@@ -11,6 +11,7 @@ def test_benchmark_percentile_and_synthetic_wer():
 def test_experimental_vad_matches_silence_prefixes():
     import numpy as np
     from faster_whisper.vad import get_vad_model
+
     from tools.benchmark_vad_ab import run_trial
 
     result = run_trial(get_vad_model(), np.zeros(16000, dtype=np.float32), 100)

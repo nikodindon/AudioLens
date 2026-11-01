@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 from faster_whisper.vad import get_vad_model
+
 from tools.benchmark_whisper_ab import make_audio
 
 WINDOW, CONTEXT = 512, 64
