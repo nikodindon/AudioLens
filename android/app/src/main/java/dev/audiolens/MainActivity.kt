@@ -43,11 +43,7 @@ class MainActivity : ComponentActivity() {
     private val projectionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-                if (liveRequested) {
-                    startStreaming(result.resultCode, result.data!!)
-                } else {
-                    startCaptureService(result.resultCode, result.data!!, filesDir.resolve("debug_capture.wav").absolutePath)
-                }
+                startCaptureService(result.resultCode, result.data!!, filesDir.resolve("debug_capture.wav").absolutePath)
             }
         }
 
@@ -79,7 +75,7 @@ class MainActivity : ComponentActivity() {
             notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
         }
-        liveRequested = true
+        liveRequested = false
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
     }
