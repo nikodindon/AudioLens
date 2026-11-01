@@ -31,6 +31,7 @@ from starlette.websockets import WebSocketState
 
 from . import __version__
 from .config import Config, ConfigError, load_config, resolve_config_path
+from .log_privacy import QueryRedactionFilter
 from .protocol import (
     PROTOCOL_VERSION,
     ClientMessageError,
@@ -61,6 +62,9 @@ _FAILED_ATTEMPTS: dict[str, int] = {}
 
 def configure_logging(level: str) -> None:
     logging.getLogger("uvicorn.access").disabled = True
+    framework_log = logging.getLogger("uvicorn.error")
+    if not any(isinstance(item, QueryRedactionFilter) for item in framework_log.filters):
+        framework_log.addFilter(QueryRedactionFilter())
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",

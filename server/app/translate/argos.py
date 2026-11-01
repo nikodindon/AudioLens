@@ -27,7 +27,7 @@ class ArgosTranslator:
             )
             argostranslate.package.install_from_path(package.download())
         except Exception:  # pragma: no cover - network/package dependent
-            logger.warning("Argos could not install %s->%s", src_lang, tgt_lang)
+            logger.warning("Argos could not install the requested language pair")
         try:
             return argostranslate.translate.translate(text, src_lang, tgt_lang)
         except Exception:
