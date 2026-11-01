@@ -388,6 +388,7 @@ def create_app(
             target_lang=message.target_lang,
             translate=message.translate,
             partials=message.partials,
+            mode=message.mode,
         )
         app.state.sessions += 1
         logger.info(

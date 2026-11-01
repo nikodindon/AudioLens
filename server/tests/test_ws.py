@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pytest
 from app.config import Config
 from app.main import create_app
+from app.session import Session
 from app.stt import ModelSpec, Segment, Transcription
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -117,6 +119,26 @@ def test_start_stream_stop_roundtrip(config: Config) -> None:
             assert finals, messages
             assert finals[0]["text_src"] == "hi"
             assert finals[0]["segment_id"] == 0
+
+
+def test_clip_start_disables_partials_and_sends_done(config: Config, monkeypatch) -> None:
+    async def speech_vad(self, audio):
+        return np.ones(max(1, audio.size // 512), dtype=np.float32)
+
+    monkeypatch.setattr(Session, "_vad_probs", speech_vad)
+    with make_client(config) as client:
+        with client.websocket_connect("/ws", headers={"Authorization": f"Bearer {TOKEN}"}) as ws:
+            ws.send_text(json.dumps(dict(START, mode="clip")))
+            assert ws.receive_json()["type"] == "ready"
+            ws.send_bytes(b"\x01\x00" * 16000)
+            ws.send_text('{"type":"ping"}')
+            assert ws.receive_json()["type"] == "pong"
+            ws.send_text('{"type":"stop"}')
+            assert ws.receive_json()["type"] == "final"
+            assert ws.receive_json()["type"] == "done"
+            with pytest.raises(WebSocketDisconnect) as excinfo:
+                ws.receive_json()
+            assert excinfo.value.code == 1000
 
 
 def test_disallowed_model_falls_back_to_config(config: Config) -> None:
