@@ -15,7 +15,7 @@ class WavWriter(private val file: File, private val sampleRate: Int, private val
             val buffer = ByteArray(length * 2)
             var i = 0
             for (j in 0 until length) {
-                val v = shorts[offset + i]
+                val v = shorts[offset + j]
                 buffer[i++] = (v.toInt() and 0xff).toByte()
                 buffer[i++] = ((v.toInt() shr 8) and 0xff).toByte()
             }

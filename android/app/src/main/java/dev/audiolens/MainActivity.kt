@@ -76,10 +76,6 @@ class MainActivity : ComponentActivity() {
             notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
         }
-        if (!Settings.canDrawOverlays(this)) {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            return
-        }
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
     }
@@ -96,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
     private fun stopCaptureService() {
         val intent = Intent(this, CaptureService::class.java).apply { action = CaptureService.ACTION_STOP }
-        startService(intent)
+        stopService(intent)
     }
 }
 

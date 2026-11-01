@@ -76,7 +76,8 @@ class AudioPlaybackCapture(
 
     fun stop() {
         running.set(false)
-        thread?.join(2000)
+        try { record?.stop() } catch (_: Exception) { }
+        thread?.join(3000)
     }
 
     fun isRunning(): Boolean = running.get()
