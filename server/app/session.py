@@ -230,20 +230,21 @@ class Session:
         if self._locked_language is None and result.language and result.language_probability >= 0.5:
             self._locked_language = result.language
 
-        logger.info(
-            "session %s segment %d: audio=%.1fs inference=%.2fs lang=%s prob=%.2f",
-            self.id,
-            self._next_segment_id,
-            result.duration_s,
-            result.inference_s,
-            result.language,
-            result.language_probability,
-        )
-
         text_src = result.text.strip()
         message: list[Any] = []
         if text_src:
             text_tgt = self._translate(text_src, result.language)
+            logger.info(
+                "session %s segment %d: audio=%.1fs inference=%.2fs lang=%s prob=%.2f src=%s tgt=%s",
+                self.id,
+                self._next_segment_id,
+                result.duration_s,
+                result.inference_s,
+                result.language,
+                result.language_probability,
+                text_src,
+                text_tgt,
+            )
             message.append(
                 FinalMessage(
                     segment_id=self._next_segment_id,
