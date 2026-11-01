@@ -14,6 +14,7 @@ dependencies = [
     "numpy>=1.26",
     "pydantic>=2.7",
     "PyYAML>=6.0",
+    "python-multipart>=0.0.9",
     "python-dotenv>=1.0",
     "websockets>=12",
 ]
