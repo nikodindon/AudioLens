@@ -17,6 +17,7 @@ import numpy as np
 from .config import Config
 from .protocol import DoneMessage, FinalMessage, PartialMessage
 from .stt import SAMPLE_RATE, WhisperEngine
+from .telemetry import measure
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,8 @@ class Session:
         if audio.size == 0:
             return messages
 
-        vad_prob = await self._vad_probs(audio)
+        with measure("vad"):
+            vad_prob = await self._vad_probs(audio)
         speech_flags = vad_prob >= self.config.vad.threshold
         base_silence = max(1, int(self.config.vad.min_silence_ms / (SILENCE_WINDOW_S * 1000)))
         if self.mode == "clip":
@@ -217,15 +219,16 @@ class Session:
             language = None
 
         try:
-            result = await self.engine.transcribe(
-                audio,
-                language=language,
-                task="transcribe",
-                beam_size=self.config.whisper.beam_size,
-                no_speech_threshold=0.6,
-                compression_ratio_threshold=2.4,
-                temperature=0.0,
-            )
+            with measure("stt_total"):
+                result = await self.engine.transcribe(
+                    audio,
+                    language=language,
+                    task="transcribe",
+                    beam_size=self.config.whisper.beam_size,
+                    no_speech_threshold=0.6,
+                    compression_ratio_threshold=2.4,
+                    temperature=0.0,
+                )
         except Exception:
             logger.warning("transcription failed for session %s", self.id)
             return []
@@ -297,9 +300,10 @@ class Session:
         if self.translator is None:
             return None
         try:
-            return await asyncio.to_thread(
-                self.translator.translate, text, src_lang, self.target_lang
-            )
+            with measure("translation"):
+                return await asyncio.to_thread(
+                    self.translator.translate, text, src_lang, self.target_lang
+                )
         except Exception:
             logger.warning("translation failed for session %s", self.id)
             return None

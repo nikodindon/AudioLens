@@ -163,6 +163,7 @@ private fun SettingsPage(activity: MainActivity, prefs: android.content.SharedPr
     var mode by remember { mutableStateOf(prefs.getString("mode", "live") ?: "live") }
     var size by remember { mutableFloatStateOf(prefs.getFloat("overlay_text_size", 18f)) }
     var opacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", .88f)) }
+    var metricsEnabled by remember { mutableStateOf(prefs.getBoolean("metrics_enabled", false)) }
     var diagnosticWav by remember { mutableStateOf(prefs.getBoolean("diagnostic_wav", false)) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionLabel("CONNEXION")
@@ -194,6 +195,16 @@ private fun SettingsPage(activity: MainActivity, prefs: android.content.SharedPr
             Switch(checked = diagnosticWav, onCheckedChange = {
                 diagnosticWav = it
                 prefs.edit().putBoolean("diagnostic_wav", it).apply()
+            })
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Mesurer les délais techniques")
+                Text("Données locales sans audio ni transcription ; appliqué à la prochaine capture.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = metricsEnabled, onCheckedChange = {
+                metricsEnabled = it
+                prefs.edit().putBoolean("metrics_enabled", it).apply()
             })
         }
         Spacer(Modifier.height(24.dp))

@@ -69,6 +69,8 @@ class LiveWebSocketClient(
         return if (socket.send(okio.Buffer().write(data).readByteString())) AudioSendResult.SENT else AudioSendResult.DISCONNECTED
     }
 
+    fun queuedBytes(): Long = webSocket?.queueSize() ?: 0L
+
     fun finish(onComplete: (Boolean) -> Unit) {
         if (!stopHandshake.begin(onComplete)) return
         closing = true

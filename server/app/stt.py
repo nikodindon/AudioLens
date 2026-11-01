@@ -25,6 +25,7 @@ import numpy as np
 from faster_whisper import WhisperModel
 
 from .config import Config, WhisperConfig
+from .telemetry import measure
 
 logger = logging.getLogger(__name__)
 
@@ -325,26 +326,31 @@ class WhisperEngine:
         model = self._models[spec.model].model
         beam = self._whisper.beam_size if beam_size is None else beam_size
 
-        async with self._inference_semaphore:
+        with measure("stt_wait"):
+            await self._inference_semaphore.acquire()
+        try:
             start = time.monotonic()
-            segments, info = await asyncio.to_thread(
-                model.transcribe,
-                audio,
-                language=language,
-                task=task,
-                beam_size=beam,
-                temperature=temperature,
-                no_speech_threshold=no_speech_threshold,
-                compression_ratio_threshold=compression_ratio_threshold,
-                condition_on_previous_text=False,
-                vad_filter=False,
-                word_timestamps=False,
-            )
-            collected = [
-                Segment(start_s=segment.start, end_s=segment.end, text=segment.text)
-                for segment in segments
-            ]
+            with measure("stt_inference"):
+                segments, info = await asyncio.to_thread(
+                    model.transcribe,
+                    audio,
+                    language=language,
+                    task=task,
+                    beam_size=beam,
+                    temperature=temperature,
+                    no_speech_threshold=no_speech_threshold,
+                    compression_ratio_threshold=compression_ratio_threshold,
+                    condition_on_previous_text=False,
+                    vad_filter=False,
+                    word_timestamps=False,
+                )
+                collected = [
+                    Segment(start_s=segment.start, end_s=segment.end, text=segment.text)
+                    for segment in segments
+                ]
             inference_s = time.monotonic() - start
+        finally:
+            self._inference_semaphore.release()
 
         return Transcription(
             segments=collected,

@@ -45,6 +45,7 @@ from .protocol import (
 )
 from .session import AudioError, Session
 from .stt import ModelLoadError, ModelSpec, WhisperEngine
+from .telemetry import measure
 from .translate import build_translator
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,8 @@ def _unused_extract_http_token(request: Request) -> str | None:
 
 async def _send(websocket: WebSocket, model: Any) -> None:
     if websocket.application_state == WebSocketState.CONNECTED:
-        await websocket.send_text(model.model_dump_json(exclude_none=False))
+        with measure("ws_send"):
+            await websocket.send_text(model.model_dump_json(exclude_none=False))
 
 
 async def _fail(websocket: WebSocket, code: str, message: str, close_code: int) -> None:
@@ -446,7 +448,8 @@ def create_app(
                     await _fail(websocket, exc.code, exc.message, WS_BAD_REQUEST)
                     return
                 try:
-                    generated = await session.process()
+                    with measure("frame_process"):
+                        generated = await session.process()
                 except Exception:
                     logger.error("processing audio failed for session %s", session.id)
                     await _fail(

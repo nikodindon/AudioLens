@@ -52,6 +52,8 @@ class CaptureService : Service() {
     private var stopping = false
     private var finished = false
     private var started = false
+    private var metricsEnabled = false
+    private var lastMetricNs = 0L
     private val sendFailureReported = AtomicBoolean(false)
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -104,6 +106,7 @@ class CaptureService : Service() {
     }
 
     private fun startCaptureResources(intent: Intent) {
+        metricsEnabled = getSharedPreferences("audio_lens", MODE_PRIVATE).getBoolean("metrics_enabled", false)
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
         val resultData = requireNotNull(intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA))
         val outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH)
@@ -116,6 +119,7 @@ class CaptureService : Service() {
         if (serverUrl != null && !token.isNullOrEmpty()) {
             android.util.Log.i("AudioLensWS", "creating WebSocket")
             val client = LiveWebSocketClient(serverUrl, token, { msg ->
+                val receivedNs = if (metricsEnabled) android.os.SystemClock.elapsedRealtimeNanos() else 0L
                 try {
                     val j = org.json.JSONObject(msg)
                     uiHandler.post {
@@ -131,6 +135,10 @@ class CaptureService : Service() {
                                 if (text.isNotBlank()) {
                                     overlayView?.text = text.take(220)
                                     LiveTranscriptHolder.add(src, tgt)
+                                }
+                                if (metricsEnabled) {
+                                    val elapsedMs = (android.os.SystemClock.elapsedRealtimeNanos() - receivedNs) / 1_000_000.0
+                                    android.util.Log.i("AudioLensMetrics", "stage=receive_to_overlay_ms duration_ms=$elapsedMs")
                                 }
                                 if (!stopping) LiveTranscriptHolder.status = CaptureStatus.ACTIVE
                             }
@@ -225,7 +233,13 @@ class CaptureService : Service() {
             mediaProjection = mediaProjection,
             outputFile = outFile,
             onChunk = { chunk ->
+                val startNs = if (metricsEnabled) android.os.SystemClock.elapsedRealtimeNanos() else 0L
                 val result = live?.sendBinary(chunk) ?: AudioSendResult.DISCONNECTED
+                if (metricsEnabled && startNs - lastMetricNs >= 5_000_000_000L) {
+                    val elapsedMs = (android.os.SystemClock.elapsedRealtimeNanos() - startNs) / 1_000_000.0
+                    android.util.Log.i("AudioLensMetrics", "stage=audio_enqueue duration_ms=$elapsedMs queued_bytes=${live?.queuedBytes() ?: 0} frame_bytes=${chunk.size}")
+                    lastMetricNs = startNs
+                }
                 if (result != AudioSendResult.SENT && sendFailureReported.compareAndSet(false, true)) {
                     uiHandler.post {
                         if (!stopping) {

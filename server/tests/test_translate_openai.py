@@ -44,6 +44,13 @@ def test_logs_never_include_model_response_or_http_exception(caplog):
 
         with patch("urllib.request.urlopen", return_value=Response()):
             assert translator.translate("hello", "en", "fr") is None
+
+        class SuccessfulResponse(Response):
+            def read(self):
+                return json.dumps({"choices": [{"message": {"content": secret}}]}).encode()
+
+        with patch("urllib.request.urlopen", return_value=SuccessfulResponse()):
+            assert translator.translate("hello", "en", "fr") == secret
     assert secret not in caplog.text
     assert "request failed" in caplog.text
     assert "no choices" in caplog.text
