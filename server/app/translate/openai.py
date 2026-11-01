@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json as _json
+import logging
 import os
 import urllib.request
 
 from .base import passthrough_if_same
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAICompatibleTranslator:
@@ -53,12 +56,18 @@ class OpenAICompatibleTranslator:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.http_timeout) as response:
-                body = _json.loads(response.read().decode())
-        except Exception:
+                raw = response.read().decode()
+                body = _json.loads(raw)
+                logger.debug("openai translator response raw=%s", raw[:1000])
+        except Exception as exc:
+            logger.exception("openai translator request failed: %s", exc)
             return None
         choices = body.get("choices") or []
         if not choices:
+            logger.warning("openai translator returned no choices: %s", body)
             return None
         message = choices[0].get("message") or {}
         content = (message.get("content") or "").strip()
+        if not content:
+            logger.warning("openai translator empty content body=%s", body)
         return content or None
