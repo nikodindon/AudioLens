@@ -10,6 +10,12 @@ import android.content.Intent
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dev.audiolens.network.LiveWebSocketClient
@@ -34,6 +40,8 @@ class CaptureService : Service() {
     private var projection: MediaProjection? = null
     private var capture: AudioPlaybackCapture? = null
     private var live: LiveWebSocketClient? = null
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var overlayView: TextView? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -75,7 +83,14 @@ class CaptureService : Service() {
 
         if (serverUrl != null && !token.isNullOrEmpty()) {
             android.util.Log.i("AudioLensWS", "creating ws url=" + serverUrl)
-            val client = LiveWebSocketClient(serverUrl, token, { msg -> android.util.Log.i("AudioLensWS", "RX=" + msg) }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })
+            val client = LiveWebSocketClient(serverUrl, token, { msg ->
+                android.util.Log.i("AudioLensWS", "RX=" + msg)
+                try {
+                    val j = org.json.JSONObject(msg)
+                    val t = j.optString("text_tgt").takeIf { it.isNotBlank() } ?: (j.optString("text_src").takeIf { it.isNotBlank() } ?: j.optString("text"))
+                    if (t.isNotBlank()) uiHandler.post { overlayView?.text = t }
+                } catch (_: Exception) {}
+            }, { android.util.Log.i("AudioLensWS", "WS connected") }, { t -> android.util.Log.e("AudioLensWS", "WS failure", t) })
             live = client
             client.connect()
             client.sendStart(targetLang, mode, whisperModel)
@@ -83,6 +98,18 @@ class CaptureService : Service() {
             android.util.Log.w("AudioLensWS", "WS skipped serverUrl=" + serverUrl + " token empty=" + token.isNullOrEmpty())
         }
 
+        if (Settings.canDrawOverlays(this)) {
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                android.graphics.PixelFormat.TRANSLUCENT,
+            )
+            val tv = TextView(this).apply { text = "AudioLens..." ; setBackgroundColor(android.graphics.Color.argb(160,0,0,0)); setTextColor(android.graphics.Color.WHITE) }
+            (getSystemService(Context.WINDOW_SERVICE) as WindowManager).addView(tv, params)
+            overlayView = tv
+        }
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val mediaProjection = projectionManager.getMediaProjection(resultCode, resultData) ?: return
         projection = mediaProjection
@@ -104,6 +131,8 @@ class CaptureService : Service() {
         capture?.stop()
         capture = null
         live?.sendStop()
+        overlayView?.let { (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(it) }
+        overlayView = null
         live?.disconnect()
         live = null
         projection?.stop()
