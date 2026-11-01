@@ -134,13 +134,16 @@ class VadConfig(BaseModel):
 class TranslationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    engine: Literal["none", "nllb", "ollama", "argos"] = "none"
+    engine: Literal["none", "nllb", "ollama", "argos", "openai"] = "none"
     device: Literal["auto", "cuda", "cpu"] = "cpu"
     compute_type: str = "int8"
     model: str = "facebook/nllb-200-distilled-600M"
     target_lang: str = "fr"
     ollama_url: str | None = None
     ollama_model: str | None = None
+    openai_base_url: str | None = None
+    openai_model: str | None = None
+    openai_api_key: str | None = None
 
     @field_validator("compute_type")
     @classmethod

@@ -4,6 +4,7 @@ from .argos import ArgosTranslator
 from .base import Translator
 from .nllb import NLLBTranslator
 from .ollama import OllamaTranslator
+from .openai import OpenAICompatibleTranslator
 
 
 def build_translator(config) -> Translator | None:
@@ -23,4 +24,10 @@ def build_translator(config) -> Translator | None:
         )
     if engine == "argos":
         return ArgosTranslator()
+    if engine == "openai":
+        return OpenAICompatibleTranslator(
+            base_url=config.translation.openai_base_url or "",
+            model=config.translation.openai_model or "",
+            api_key=config.translation.openai_api_key,
+        )
     return None

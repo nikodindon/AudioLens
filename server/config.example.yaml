@@ -56,7 +56,7 @@ vad:
   window_size: 512
 
 translation:
-  # none | nllb | ollama | argos   (implemented in Phase 3; `none` disables it)
+  # none | nllb | ollama | argos | openai   (implemented in Phase 3; `none` disables it)
   engine: "none"
   # Translation may run on CPU to leave VRAM to Whisper.
   device: "cpu"
