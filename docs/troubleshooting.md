@@ -1,77 +1,33 @@
 # Dépannage
 
-## Serveur
+Ce guide décrit la branche `dev`. Pour l'installation et les limites générales, voir le [README](../README.md). Ne publiez pas de token, clé API, audio privé ou transcription dans un ticket.
 
-### `CUDA backend unavailable` / repli CPU inattendu
+## Le serveur ne démarre pas
 
-1. Vérifier le pilote : `nvidia-smi`.
-2. Vérifier que les wheels CUDA/cuDNN sont chargées :
+- Depuis `server/`, vérifiez l'environnement virtuel et le chemin de configuration : `python -m app.main --config config.yaml`.
+- `configuration file not found` : créez votre fichier à partir de `config.example.yaml` et remplacez le token d'exemple par une valeur privée d'au moins 16 caractères. `openssl rand -hex 16` génère une valeur adaptée.
+- Le premier chargement d'un modèle absent peut nécessiter un téléchargement et de l'espace disque. Le modèle et le périphérique effectifs sont annoncés au démarrage et exposés par `/health`.
+- Pour le GPU, vérifiez `nvidia-smi`, le pilote et les bibliothèques installées. Après installation volontaire de l'extra GPU, `source scripts/gpu_env.sh` configure les bibliothèques pour le terminal courant. Sinon, vérifiez le repli CPU et les réglages `whisper.device` / `allow_cpu_fallback`.
 
-```bash
-cd server
-source scripts/gpu_env.sh
-python -c "import ctranslate2; print(ctranslate2.get_cuda_device_count()); print(sorted(ctranslate2.get_supported_compute_types('cuda')))"
-```
+## Le téléphone ne joint pas le serveur
 
-Attendu sur la GTX 1050 : `1` et `['float32', 'int8', 'int8_float32']`.
-Si la liste est vide, `nvidia-cublas-cu12` / `nvidia-cudnn-cu12` ne sont pas
-installés : `pip install -e ".[gpu]"`.
+1. Vérifiez que le serveur répond sur son ordinateur : `curl http://127.0.0.1:8765/health`.
+2. En USB, vérifiez `adb devices`, puis configurez `adb reverse tcp:8765 tcp:8765`. Dans l'application, utilisez `http://localhost:8765` et renseignez le token dans son champ dédié.
+3. Sans USB, vérifiez l'adresse de l'interface d'écoute, le chemin réseau privé et les ACL. La politique Android de [network_security_config.xml](../android/app/src/main/res/xml/network_security_config.xml) limite les hôtes autorisés en `ws://` clair. Une autre adresse peut nécessiter une adaptation de l'application ou un accès `wss://` approprié.
+4. `/health` vérifie l'état du serveur mais ne prouve pas que le téléphone ou le moteur de traduction externe y accède.
 
-3. `float16` / `int8_float16` échouent sur Pascal : c'est normal, CTranslate2 ne
-   les supporte pas sur compute capability 6.1. Laisser `compute_type: auto`
-   (résout `int8_float32`) ou choisir explicitement `int8_float32`.
+Le client Android envoie le token dans l'en-tête Bearer, pas dans l'URL. N'ajoutez pas `?token=...` à l'adresse Android. La query n'est autorisée côté serveur que si `server.allow_query_token` est explicitement activé.
 
-### `model_unavailable` ou téléchargement bloqué
+## Le bandeau reste en attente
 
-- Vérifier l'espace disque (`medium` ≈ 1,5 Go, `small` ≈ 500 Mo).
-- Tester le téléchargement : le serveur journalise le modèle au démarrage.
-- Pré-télécharger : `python -c "from faster_whisper import WhisperModel; WhisperModel('small')"`.
-- Derrière un proxy : `HTTPS_PROXY`, `HF_HOME` pour changer le cache.
+- Vérifiez l'état de la connexion dans AudioLens, puis que le serveur est lancé. Après une coupure, arrêtez la session et démarrez une nouvelle capture : la reconnexion automatique n'est pas implémentée.
+- Vérifiez l'autorisation de superposition et le consentement MediaProjection. Android peut demander un nouveau consentement à chaque session.
+- Vérifiez que l'application source et le contenu autorisent la capture. Un flux protégé, un appel ou certains messages vocaux peuvent produire du silence ; essayez un contenu explicitement autorisé.
+- Si le texte source apparaît mais pas sa traduction, vérifiez `translation.engine`, la configuration et la disponibilité du moteur choisi. `none` désactive la traduction.
+- Une notification de saturation indique que la capture s'est arrêtée et qu'une partie de l'audio n'a pas été envoyée. Réduisez la charge ou examinez le réseau avant de redémarrer.
 
-### `configuration file not found`
+## Latence et diagnostic
 
-```bash
-cd server
-cp config.example.yaml config.yaml
-# puis remplacer le token par : openssl rand -hex 16
-```
+Les chiffres du [benchmark Whisper historique](benchmark.md) ne représentent pas une latence de bout en bout. Consultez l'[analyse du pipeline](streaming-latency.md) et le [benchmark synthétique](benchmark-streaming-report.md) avant de modifier le modèle ou les seuils.
 
-### `token is a placeholder` / `too short`
-
-Le token doit faire ≥ 16 caractères et ne pas être une valeur d'exemple.
-Générer : `openssl rand -hex 16`.
-
-### Le téléphone n'atteint pas le serveur
-
-- Développement : `adb reverse tcp:8765 tcp:8765`, puis URL
-  `ws://localhost:8765/ws?token=...`.
-- Tailscale : `tailscale status`, `tailscale ip -4` ; configurer
-  `server.host` avec l'IP Tailscale (ou `0.0.0.0` seulement si l'ACL restreint).
-- Vérifier l'ACL Tailscale (le téléphone doit pouvoir joindre le port 8765).
-- Android bloque le cleartext par défaut : voir `docs/device.md` et la
-  `network_security_config`. En Phase 6, utiliser `wss://` via `tailscale serve`
-  est la solution recommandée hors développement.
-
-### Latence trop élevée
-
-Voir `docs/benchmark.md` et `README.md` §10. Sur GTX 1050 : `small` en
-`int8_float32` est le compromis par défaut ; `base` pour plus de vitesse ;
-`medium` si la précision prime. Vérifier que le serveur utilise bien `cuda` via
-`/health` (`device`, `compute_type`).
-
-### Theora / audio non transcrit (silence)
-
-Whisper n'est pas un détecteur de silence : la Phase 2 ajoute le VAD. En Phase 1,
-un WAV silencieux peut produire des hallucinations ; ce sera filtré ensuite.
-
-## Android (à compléter aux Phases 5–8)
-
-- Autorisation « Afficher par-dessus les autres applications » absente chez
-  certains constructeurs (realme/Xiaomi/OPPO) : chercher dans les paramètres
-  « Affichage par-dessus les autres applications » / « Overlay ».
-- MediaProjection refusé : l'autorisation est demandée à chaque session sur
-  Android 14+. Le service doit être au premier plan **avant** l'obtention de la
-  projection.
-- Notifications invisibles : accorder `POST_NOTIFICATIONS` (Android 13+).
-- Capture silencieuse : l'app source a `allowAudioPlaybackCapture=false` ou le
-  contenu est protégé (DRM). Tester avec une autre app.
+Le WAV de diagnostic est désactivé par défaut. S'il est activé dans les réglages, l'audio enregistré est privé ; le désactiver ne supprime pas automatiquement les anciens fichiers. L'instrumentation facultative mesure des durées locales, sans synchroniser les horloges du téléphone et du serveur.

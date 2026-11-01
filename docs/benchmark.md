@@ -1,4 +1,6 @@
-# Benchmark Whisper (Phase 1)
+# Benchmark Whisper historique
+
+> Relevé historique de transcription batch, sans capture Android ni traduction. Il ne mesure pas la latence de bout en bout actuelle. Voir [le rapport streaming synthétique](benchmark-streaming-report.md) pour ses propres limites.
 
 Environnement de référence :
 

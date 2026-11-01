@@ -14,21 +14,20 @@ Relevé le 2026-11-01 via `adb`.
 
 ## Couverture de test
 
-Le téléphone est en **Android 15 / API 35**, donc la cible la plus récente.
+Le téléphone de ce relevé est en **Android 15 / API 35** ; le projet compile et cible actuellement l’API 36.
 La branche `minSdk 30` (Android 11) n'est **pas** testable sur cet appareil ;
 le code la gère par des vérifications `Build.VERSION.SDK_INT` :
 
 | Comportement | API 30–32 | 33 | 34–35 | Testé ici |
 |---|---|---|---|---|
-| Permission `POST_NOTIFICATIONS` | absente | runtime | runtime | API 35 seulement |
+| Permission `POST_NOTIFICATIONS` | absente | runtime | runtime | API 35 seulement ; l’affichage dépend de l’autorisation |
 | `FOREGROUND_SERVICE_MEDIA_PROJECTION` | non déclarée | non déclarée | déclarée + type | API 35 |
-| Démarrage FGS avant consentement MediaProjection | recommandé | recommandé | **obligatoire** | API 35 |
+| Service au premier plan avant `getMediaProjection()` | pris en charge | pris en charge | requis par le parcours actuel | API 35 |
 | Consentement MediaProjection à chaque session | oui | oui | oui | API 35 |
 | Overlay `TYPE_APPLICATION_OVERLAY` | oui | oui | oui + restrictions OEM | API 35 |
-| Cleartext `ws://` via config réseau | oui | oui | oui | à valider Phase 6 |
+| Cleartext `ws://` via config réseau | selon la config | selon la config | selon la config | hôtes explicitement autorisés uniquement |
 
-Les tests des Phases 5 à 8 seront documentés ici (commandes, extraits logcat,
-captures, tailles de WAV) au fur et à mesure.
+Ces observations sont historiques et ne remplacent pas les tests des changements actuels sur appareil. Ne publiez pas de captures ou journaux contenant des données privées.
 
 ## Connexion serveur en développement
 
@@ -37,4 +36,4 @@ adb reverse tcp:8765 tcp:8765   # le téléphone joint ws://localhost:8765/ws
 ```
 
 Pour valider le chemin réel Tailscale, utiliser l'IP `100.x.y.z` ou le nom
-MagicDNS du serveur, avec le serveur écoutant sur cette interface.
+MagicDNS du serveur, avec le serveur écoutant sur cette interface et une configuration réseau Android autorisant l’adresse ou un accès `wss://` adapté.

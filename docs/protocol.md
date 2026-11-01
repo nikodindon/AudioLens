@@ -4,10 +4,10 @@ Version: `1` · Server: `0.1.0`
 
 Transport: WebSocket. Endpoint: `ws://<host>:8765/ws`. Audio frames stay on the same socket.
 
-Authentication: the token travels only via the handshake header
-`Authorization: Bearer <TOKEN>` (it never appears in any URL or log). Query-string
-token (`/ws?token=`) is accepted only when `server.allow_query_token: true` (default
-`false`) and only for test tooling. An invalid token yields an `error` followed by
+Authentication: Android sends the token in the handshake header
+`Authorization: Bearer <TOKEN>`. A query-string token is accepted only when
+`server.allow_query_token: true` (default `false`); prefer the header and avoid
+URLs containing credentials. An invalid token yields an `error` followed by
 close code **4401** and a growing per-IP delay.
 
 The token is compared in constant time. Never commit it; generate one with
@@ -46,8 +46,8 @@ The token is compared in constant time. Never commit it; generate one with
 | `target_lang` | no | `"fr"` | ISO 639-1 code |
 | `whisper_model` | no | `null` | **request only**, see below |
 | `translate` | no | `true` | |
-| `partials` | no | `true` | no partials are produced in Phase 1 |
-| `mode` | no | `"live"` | `"live"` or `"clip"` (clip = accumulation + passe finale de meilleure qualité + `done`) |
+| `partials` | no | `true` | the server can emit partials in live mode; Android currently displays finals |
+| `mode` | no | `"live"` | `"live"` or `"clip"` (clip = accumulation jusqu’à stop, final puis `done` si un final est produit) |
 
 ### `whisper_model` is a request, not a command
 
@@ -59,8 +59,8 @@ from its configuration and reports this in `ready`:
 - `whisper_model_requested` — what the client asked for (`null` if none);
 - `whisper_model_accepted` — `true` only if the request was honoured.
 
-Clients must always read `ready` and display the effective model, never assume
-their request was accepted.
+Clients should inspect `ready` to determine the effective model. The current
+Android interface does not yet display this acceptance detail.
 
 ### Other client messages (text JSON)
 
@@ -105,7 +105,7 @@ CPU fallback. A GTX 1050 (Pascal) reports `int8_float32`; CPU reports `int8`.
 { "type": "partial", "segment_id": 3, "text": "こんにちは、今日は", "lang": "ja" }
 ```
 
-Not emitted in Phase 1 (streaming segmentation lands in Phase 2).
+Emitted when enabled in live mode. The current Android overlay ignores partials.
 
 ### `final`
 
@@ -126,11 +126,10 @@ Not emitted in Phase 1 (streaming segmentation lands in Phase 2).
   with the same id.
 - `start_ms` / `end_ms` are relative to the beginning of the session audio.
 - `text_tgt` is `null` when translation is disabled (`translate: false`), when no
-  translation engine is configured (Phase 1 default: `translation.engine:
-  none`), or when the source language is unknown to the engine. It equals
+  translation engine is configured (`translation.engine: none`), or when the source language is unknown to the engine. It equals
   `text_src` when source and target languages are identical.
 - `src_lang_prob` is Whisper's language-detection confidence for the segment
-  (same value for every segment of a Phase 1 session).
+  (the detected language may be locked during a session).
 
 ### `error`
 
@@ -172,7 +171,7 @@ require a bump. Clients should ignore unknown fields.
 transcodes an audio/video file with ffmpeg to 16 kHz mono PCM, runs the clip
 pipeline and returns `{ "src_lang": "ru", "segments": [ { "start_ms":..., "end_ms":..., "text_src":..., "text_tgt":... } ] }`.
 - `POST /admin/reload` — reload `config.yaml` and the Whisper model. Requires
-  `?token=<TOKEN>` or `Authorization: Bearer <TOKEN>`. Returns the effective
+  `Authorization: Bearer <TOKEN>`; query token only if explicitly enabled. Returns the effective
   model/device/compute type; `409` when the server was started without a config
   file.
 

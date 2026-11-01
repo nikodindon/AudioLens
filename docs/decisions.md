@@ -1,7 +1,6 @@
 # Journal de décisions (ADR courts)
 
-Format : contexte → décision → conséquences. Les décisions marquées **[hors README]**
-sont des écarts volontaires par rapport au README initial (le README a été mis à jour).
+Ce journal conserve des décisions historiques, y compris des phases et hypothèses dépassées. Le [README](../README.md) et le [protocole actuel](protocol.md) décrivent le comportement courant ; une décision ancienne ne prouve pas qu’une fonction est implémentée ou validée.
 
 ---
 
@@ -185,3 +184,10 @@ WhatsApp). Mode `live` (existant) + `clip` (accumulation, final haute qualité,
 message `done`) et `POST /transcribe` (ffmpeg -> PCM, pipeline clip). Auth par
 header, nettoyage temporaire, pas de stockage. Android Phase 6 bis : partage de
 fichier vers AudioLens.
+
+
+## Note de lecture — état actuel
+
+Les ADR de phase 1 sont historiques : le serveur actuel comprend un VAD, des partiels et des adaptateurs de traduction. Le partage de fichier Android évoqué dans ADR-016 est prévu, pas implémenté ; seul l’endpoint HTTP serveur existe. Le client Android utilise l’en-tête Bearer, et le token en query est désactivé par défaut. Les mesures et limites récentes figurent dans [streaming-latency.md](streaming-latency.md).
+
+Le choix automatique actuel de type de calcul suit l’ordre déclaré dans `server/app/stt.py` et peut donc différer de l’exemple Pascal de l’ADR-004. Le rechargement de configuration et de modèle n’a pas été validé comme une opération sans impact sur des sessions actives ; ne pas l’utiliser sur un service en cours sans précaution.

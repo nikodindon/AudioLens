@@ -1,14 +1,13 @@
-# Compatibilite capture Android (Phase 5)
+# Compatibilité de capture Android
 
-Etat : application de capture installee sur le telephone connecte (realme RMX3834, Android 15 / API 35). Tests manuels Telegram/WhatsApp a faire et a noter ici avec le WAV debug (emplacement interne de l app).
+`AudioPlaybackCapture` dépend du système, de l'application source, du type de flux et des protections du contenu. Le tableau suit les éléments connus ; il ne constitue pas une garantie générale.
 
-| App | Type de contenu | Audio capture (AudioPlaybackCapture) | Notes |
-|---|---|---|---|
-| Telegram | vocal | a tester | note RMS / fichier WAV audible |
-| Telegram | video | oui | telephone XGROKJCEEQN7ZHF6, Android 15, capture 45.6 s, RMS 313, WAV PCM valide |
-| WhatsApp | vocal | a tester | mode ecouteur vs haut-parleur |
-| WhatsApp | video | a tester | |
-| YouTube | media | probable | usage MEDIA attendu capturable |
-| Instagram/TikTok | media | a tester | |
+| Application / contenu | Observation | Limite |
+|---|---|---|
+| Telegram / vidéo | Capture audio observée lors d'un test antérieur ; une vidéo parlée en russe a également été transcrite et traduite en français lors d'une validation manuelle du projet. | Résultat lié au contenu, à l'appareil et aux versions testés ; les changements récents de streaming restent à valider sur appareil. |
+| Telegram / message vocal | À tester. | Le chemin de lecture et les autorisations peuvent varier. |
+| WhatsApp / vocal ou vidéo | À tester. | Pas de validation générale documentée. |
+| YouTube, Instagram, TikTok et autres | À tester. | Ne pas déduire la compatibilité de l'application entière d'un seul média. |
+| Appels, certains flux VoIP, contenus protégés | Capture souvent indisponible ou limitée. | Android, l'application source ou le contenu peuvent refuser la capture. |
 
-TODO: executer la capture pour chaque cas et renseigner RMS non nul, taille du WAV debug et verifie que le WAV est audible.
+Les observations précédentes concernent un appareil Android 15 ; voir [device.md](device.md). Pour ajouter une entrée, noter la version d'Android et de l'application, le type de contenu autorisé, la date et le résultat, sans publier de messages, données privées ou identifiants d'appareil.
