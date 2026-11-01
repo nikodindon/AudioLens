@@ -231,3 +231,23 @@ async def test_generator_failure_releases_semaphore(config_factory, monkeypatch)
     with pytest.raises(ValueError, match="synthetic failure"):
         await engine.transcribe(audio)
     assert (await asyncio.wait_for(engine.transcribe(audio), 2)).text == "hello"
+
+
+async def test_lazy_segment_order_and_boundaries_are_preserved(config_factory, monkeypatch):
+    class MultipleModel(_FakeModel):
+        def transcribe(self, audio, **kwargs):
+            _, info = super().transcribe(audio, **kwargs)
+
+            class Part:
+                def __init__(self, start, end, text):
+                    self.start, self.end, self.text = start, end, text
+
+            return iter([Part(0.0, 0.5, "one"), Part(0.7, 1.2, "two")]), info
+
+    monkeypatch.setattr(WhisperEngine, "_construct", lambda self, spec: MultipleModel(spec))
+    engine = WhisperEngine(config_factory())
+    result = await engine.transcribe(np.zeros(32000, dtype=np.float32))
+    assert [(s.start_s, s.end_s, s.text) for s in result.segments] == [
+        (0.0, 0.5, "one"),
+        (0.7, 1.2, "two"),
+    ]
