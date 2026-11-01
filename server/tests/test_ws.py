@@ -191,5 +191,8 @@ def test_session_limit(config_factory) -> None:
 def test_reload_requires_token(config: Config) -> None:
     with make_client(config) as client:
         assert client.post("/admin/reload").status_code == 401
-        assert client.post("/admin/reload", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 200
+        assert (
+            client.post("/admin/reload", headers={"Authorization": f"Bearer {TOKEN}"}).status_code
+            == 200
+        )
         assert client.get("/health").json()["model"] == "small"

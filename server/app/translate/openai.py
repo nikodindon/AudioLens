@@ -43,9 +43,7 @@ class OpenAICompatibleTranslator:
         payload = _json.dumps(
             {
                 "model": self.model,
-                "messages": [
-                    {"role": "user", "content": f"{prompt}\n\n{text}"}
-                ],
+                "messages": [{"role": "user", "content": f"{prompt}\n\n{text}"}],
                 "temperature": 0,
                 "max_tokens": 2048,
             }

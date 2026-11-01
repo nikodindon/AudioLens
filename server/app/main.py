@@ -150,7 +150,10 @@ def create_app(
             )
             app.state.engine = active_engine
         if conf.translation.engine != "none" and getattr(app.state, "translator", None) is None:
-            logger.warning("translation.engine=%s configured but translator unavailable", conf.translation.engine)
+            logger.warning(
+                "translation.engine=%s configured but translator unavailable",
+                conf.translation.engine,
+            )
         try:
             yield
         finally:
