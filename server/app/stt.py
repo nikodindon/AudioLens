@@ -290,6 +290,9 @@ class WhisperEngine:
         requested_model: str | None = None,
         task: str = "transcribe",
         beam_size: int | None = None,
+        temperature: float = 0.0,
+        no_speech_threshold: float = 0.6,
+        compression_ratio_threshold: float = 2.4,
     ) -> Transcription:
         """Transcribe mono float32 audio at 16 kHz (blocking work off the event loop)."""
         if audio.dtype != np.float32:
@@ -306,6 +309,9 @@ class WhisperEngine:
                 language=language,
                 task=task,
                 beam_size=beam,
+                temperature=temperature,
+                no_speech_threshold=no_speech_threshold,
+                compression_ratio_threshold=compression_ratio_threshold,
                 condition_on_previous_text=False,
                 vad_filter=False,
                 word_timestamps=False,

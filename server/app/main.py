@@ -300,6 +300,16 @@ def create_app(
                 except AudioError as exc:
                     await _fail(websocket, exc.code, exc.message, WS_BAD_REQUEST)
                     return
+                try:
+                    generated = await session.process()
+                except Exception:
+                    logger.exception("processing audio failed for session %s", session.id)
+                    await _fail(
+                        websocket, "internal_error", "transcription failed", WS_INTERNAL_ERROR
+                    )
+                    return
+                for produced in generated:
+                    await _send(websocket, produced)
                 continue
 
             text = incoming.get("text")

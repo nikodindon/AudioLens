@@ -102,17 +102,21 @@ def test_start_stream_stop_roundtrip(config: Config) -> None:
             assert ready["whisper_device"] == "cpu"
             assert ready["whisper_compute_type"] == "int8"
 
-            ws.send_bytes(b"\x00\x00" * 1600)
+            ws.send_bytes(b"\x01\x00" * 16000)
             ws.send_text('{"type":"ping"}')
             assert ws.receive_json() == {"type": "pong"}
 
             ws.send_text('{"type":"stop"}')
-            final = ws.receive_json()
-            assert final["type"] == "final"
-            assert final["text_src"] == "hi"
-            assert final["segment_id"] == 0
-            with pytest.raises(WebSocketDisconnect):
-                ws.receive_json()
+            messages = []
+            try:
+                while True:
+                    messages.append(ws.receive_json())
+            except WebSocketDisconnect:
+                pass
+            finals = [m for m in messages if m["type"] == "final"]
+            assert finals, messages
+            assert finals[0]["text_src"] == "hi"
+            assert finals[0]["segment_id"] == 0
 
 
 def test_disallowed_model_falls_back_to_config(config: Config) -> None:
