@@ -13,7 +13,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import android.os.IBinder
@@ -43,6 +42,13 @@ class CaptureService : Service() {
     private var live: LiveWebSocketClient? = null
     private val uiHandler = Handler(Looper.getMainLooper())
     private var overlayView: TextView? = null
+    private var stopping = false
+    private var started = false
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            stopCapture()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -73,9 +79,21 @@ class CaptureService : Service() {
     }
 
     private fun startCapture(intent: Intent) {
+        // A new consent result must not replace resources of an active session.
+        if (started || stopping) return
+        started = true
+        try {
+            startCaptureResources(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("AudioLens", "Unable to start capture", e)
+            stopCapture()
+        }
+    }
+
+    private fun startCaptureResources(intent: Intent) {
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
-        val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA) ?: return
-        val outputPath = intent.getStringExtra(EXTRA_OUTPUT_PATH) ?: return
+        val resultData = requireNotNull(intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA))
+        val outputPath = requireNotNull(intent.getStringExtra(EXTRA_OUTPUT_PATH))
         val serverUrl = intent.getStringExtra(EXTRA_SERVER_URL)
         val token = intent.getStringExtra(EXTRA_TOKEN)
         val targetLang = intent.getStringExtra(EXTRA_TARGET_LANG) ?: "fr"
@@ -94,6 +112,7 @@ class CaptureService : Service() {
                     val tgt = j.optString("text_tgt", "").trim()
                     val text = if (tgt.isNotBlank()) tgt.take(220) else src.take(220)
                     if (text.isNotBlank() && text.length >= 5) uiHandler.post {
+                        if (stopping) return@post
                         overlayView?.text = text
                         overlayView?.maxLines = 4
                         overlayView?.ellipsize = android.text.TextUtils.TruncateAt.END
@@ -129,16 +148,25 @@ class CaptureService : Service() {
             overlayView = tv
         }
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val mediaProjection = projectionManager.getMediaProjection(resultCode, resultData) ?: return
+        val mediaProjection = requireNotNull(projectionManager.getMediaProjection(resultCode, resultData))
         projection = mediaProjection
+        mediaProjection.registerCallback(projectionCallback, uiHandler)
         val outFile = File(outputPath)
         capture = AudioPlaybackCapture(
             context = this,
             mediaProjection = mediaProjection,
             outputFile = outFile,
             onChunk = { chunk -> live?.sendBinary(chunk) },
+            onFailure = { error ->
+                android.util.Log.e("AudioLens", "Capture stopped unexpectedly", error)
+                uiHandler.post { stopCapture() }
+            },
         )
         val started = capture?.start() == true
+        if (!started) {
+            stopCapture()
+            return
+        }
         android.util.Log.i("AudioLens", "capture started=$started, server=$serverUrl, tokenLen=${token?.length ?: -1}")
         val status = if (started) "Capture en cours (${outFile.name})" else "Echec de la capture"
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -146,17 +174,40 @@ class CaptureService : Service() {
     }
 
     private fun stopCapture() {
-        capture?.stop()
-        capture = null
-        live?.sendStop()
-        overlayView?.let { (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(it) }
-        overlayView = null
-        live?.disconnect()
-        live = null
-        projection?.stop()
-        projection = null
+        if (stopping) return
+        stopping = true
+        cleanupResources()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun cleanupResources() {
+        // Release each resource even if another one has already failed.
+        fun release(name: String, action: () -> Unit) {
+            try { action() } catch (e: Exception) {
+                android.util.Log.w("AudioLens", "Unable to release $name", e)
+            }
+        }
+        release("capture") { capture?.stop() }
+        capture = null
+        release("WebSocket stop") { live?.sendStop() }
+        overlayView?.let {
+            release("overlay") {
+                (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(it)
+            }
+        }
+        overlayView = null
+        release("WebSocket") { live?.disconnect() }
+        live = null
+        release("projection callback") { projection?.unregisterCallback(projectionCallback) }
+        release("projection") { projection?.stop() }
+        projection = null
+    }
+
+    override fun onDestroy() {
+        stopping = true
+        cleanupResources()
+        super.onDestroy()
     }
 
     private fun buildNotification(content: String): Notification {

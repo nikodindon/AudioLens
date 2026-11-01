@@ -6,8 +6,6 @@ import android.media.AudioFormat
 import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
-import android.os.Build
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -18,8 +16,10 @@ class AudioPlaybackCapture(
     private val sampleRate: Int = 16000,
     private val onRms: (Float) -> Unit = {},
     private val onChunk: (ByteArray) -> Unit = {},
+    private val onFailure: (Throwable) -> Unit = {},
 ) {
     private val running = AtomicBoolean(false)
+    @Volatile
     private var record: AudioRecord? = null
     private var thread: Thread? = null
 
@@ -45,39 +45,56 @@ class AudioPlaybackCapture(
             audioRecord.release()
             return false
         }
+        try {
+            audioRecord.startRecording()
+        } catch (e: Exception) {
+            audioRecord.release()
+            throw e
+        }
         record = audioRecord
         running.set(true)
-        audioRecord.startRecording()
         thread = Thread({
-            val wav = outputFile?.let { WavWriter(it, sampleRate, 1) }
-            val buffer = ShortArray(minBuffer)
-            var total = 0L
-            var lastRms = 0f
-            while (running.get()) {
-                val read = audioRecord.read(buffer, 0, buffer.size)
-                if (read > 0) {
-                    wav?.write(buffer, 0, read)
-                    total += read
-                    var sum = 0.0
-                    for (i in 0 until read) {
-                        val v = buffer[i].toDouble()
-                        sum += v * v
+            var wav: WavWriter? = null
+            try {
+                wav = outputFile?.let { WavWriter(it, sampleRate, 1) }
+                val buffer = ShortArray(minBuffer)
+                var total = 0L
+                var lastRms = 0f
+                while (running.get()) {
+                    val read = audioRecord.read(buffer, 0, buffer.size)
+                    if (read < 0 && running.get()) {
+                        throw IllegalStateException("AudioRecord read failed: $read")
                     }
-                    val chunk = ByteArray(read * 2)
-                    var ci = 0
-                    for (i in 0 until read) {
-                        chunk[ci++] = (buffer[i].toInt() and 0xFF).toByte()
-                        chunk[ci++] = ((buffer[i].toInt() shr 8) and 0xFF).toByte()
+                    if (read > 0 && running.get()) {
+                        wav?.write(buffer, 0, read)
+                        total += read
+                        var sum = 0.0
+                        for (i in 0 until read) {
+                            val v = buffer[i].toDouble()
+                            sum += v * v
+                        }
+                        val chunk = ByteArray(read * 2)
+                        var ci = 0
+                        for (i in 0 until read) {
+                            chunk[ci++] = (buffer[i].toInt() and 0xFF).toByte()
+                            chunk[ci++] = ((buffer[i].toInt() shr 8) and 0xFF).toByte()
+                        }
+                        onChunk(chunk)
+                        lastRms = kotlin.math.sqrt(sum / read).toFloat()
+                        onRms(lastRms)
                     }
-                    onChunk(chunk)
-                    lastRms = kotlin.math.sqrt(sum / read).toFloat()
-                    onRms(lastRms)
+                }
+            } catch (e: Exception) {
+                if (running.get()) onFailure(e)
+            } finally {
+                running.set(false)
+                try { audioRecord.stop() } catch (_: IllegalStateException) { }
+                audioRecord.release()
+                record = null
+                try { wav?.close() } catch (e: Exception) {
+                    android.util.Log.e("AudioLens", "Unable to finish capture WAV", e)
                 }
             }
-            audioRecord.stop()
-            audioRecord.release()
-            record = null
-            wav?.close()
         }, "AudioLens-Capture").apply { start() }
         return true
     }

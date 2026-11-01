@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun stopStreaming() {
+        stopService(Intent(this, CaptureService::class.java))
         live?.sendStop()
         capture?.stop()
         capture = null
@@ -207,7 +208,7 @@ private fun AppScreen(activity: MainActivity) {
             status = "Demarrage capture..."
             activity.requestPermissionsCapture(context)
         }) { Text("Capture debug") }
-        Button(onClick = { status = "Arret capture";  }) { Text("Arreter debug") }
+        Button(onClick = { status = "Arret capture"; activity.stopStreaming() }) { Text("Arreter debug") }
         Button(onClick = {
             status = "Streaming demarre..."
             activity.requestPermissionsLive(context)
